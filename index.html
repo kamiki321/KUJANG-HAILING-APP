@@ -88,44 +88,32 @@ async function apiFetch(path, options={}){
   return data;
 }
 
-// ---------- NOTIFICATIONS ----------
-function escapeHtml(value){
-  return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-}
-function toast(msg,type=''){
-  const t=document.getElementById('toast');
-  if(!t) return;
-  const d=document.createElement('div');
-  d.className='toast-item'+(type?' '+type:'');
-  d.textContent=msg;
-  t.appendChild(d);
-  setTimeout(()=>d.remove(),3500);
+// ---------- USER FEEDBACK ----------
+function toast(message,type='ok'){
+  const el=document.getElementById('toast');
+  if(!el) return;
+  el.textContent=message;
+  el.className='toast '+(type==='warn'?'warn':'');
+  el.style.display='block';
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer=setTimeout(()=>{el.style.display='';},3200);
 }
 function showResultDialog(title,message,success=true){
-  let root=document.getElementById('resultDialogRoot');
-  if(!root){
-    root=document.createElement('div');
-    root.id='resultDialogRoot';
-    root.style.cssText='position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.55);';
-    document.body.appendChild(root);
-  }
-  const icon=success?'✓':'✕';
-  const accent=success?'#16a34a':'#b3261e';
-  root.innerHTML=`<div class="card" style="width:min(430px,100%);padding:22px;box-shadow:0 12px 35px rgba(0,0,0,.3);">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-      <div style="width:34px;height:34px;border-radius:50%;background:${accent};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;">${icon}</div>
-      <div style="font-size:16px;font-weight:800;">${escapeHtml(title)}</div>
+  const old=document.getElementById('resultDialog');
+  if(old) old.remove();
+  const el=document.createElement('div');
+  el.id='resultDialog';
+  el.innerHTML=`<div class="modal-bg" style="z-index:9999;"><div class="card" style="max-width:440px;width:calc(100% - 32px);padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.28);">
+    <div style="display:flex;gap:12px;align-items:flex-start;">
+      <div style="width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:${success?'#e9f7ef':'#fdecec'};color:${success?'#17834b':'#c0392b'};font-size:20px;font-weight:900;">${success?'✓':'×'}</div>
+      <div style="flex:1;"><div style="font-size:17px;font-weight:800;margin-bottom:6px;">${title}</div><div style="font-size:13px;color:var(--gray);line-height:1.55;white-space:pre-wrap;">${message}</div></div>
     </div>
-    <div style="font-size:13px;line-height:1.55;color:var(--gray);white-space:pre-wrap;">${escapeHtml(message)}</div>
-    <div style="text-align:right;margin-top:18px;">
-      <button class="btn" onclick="closeResultDialog()">OK</button>
-    </div>
-  </div>`;
+    <div style="text-align:right;margin-top:18px;"><button class="btn" onclick="document.getElementById('resultDialog')?.remove()">OK</button></div>
+  </div></div>`;
+  document.body.appendChild(el);
 }
-function closeResultDialog(){
-  const root=document.getElementById('resultDialogRoot');
-  if(root) root.remove();
-}
+function showCrudSuccess(message){ toast('✓ '+message); showResultDialog('Berhasil',message,true); }
+function showCrudError(action,error){ const msg=action+' gagal.\n'+(error?.message||'Terjadi kesalahan pada server/database.'); toast('⚠ '+msg,'warn'); showResultDialog('Gagal',msg,false); }
 let records=[]; let opsList=[]; let selectedOpsId=''; let page='dashboard'; let editingId=null; let viewingId=null; let deletingId=null; let highlightId=null;
 let addingOps=false; let deletingOpsId=null; let pendingImportData=null; let nominalTargetId=null;
 let manageOpsOpen=false; let opsSearchQuery=''; let columnPickerOpen=false; let selectedIds=new Set(); let bulkDeleteConfirm=false;
@@ -162,9 +150,8 @@ async function confirmAddOps(){
   try{
     const o=await apiFetch('/operations',{method:'POST',body:JSON.stringify({name})});
     opsList.push(o); selectedOpsId=o.id; addingOps=false;
-    renderModal(); renderApp();
-    showResultDialog('Berhasil','Operasi baru berhasil ditambahkan ke database.');
-  }catch(e){ showResultDialog('Gagal menambahkan operasi','Operasi tidak berhasil ditambahkan.\n'+e.message,false); }
+    renderModal(); renderApp(); showCrudSuccess('Operasi berhasil ditambahkan ke database.');
+  }catch(e){ toast('⚠ Gagal menambahkan operasi: '+e.message,'warn'); }
 }
 function openAddOps(){ addingOps=true; renderModal(); }
 function openDeleteOps(id){ deletingOpsId=id; renderModal(); }
@@ -177,10 +164,8 @@ async function confirmDeleteOps(id){
     deletingOpsId=null;
     await load();
     renderModal(); renderApp();
-    showResultDialog('Berhasil','Operasi berhasil dihapus dari database.');
-  }catch(e){
-    showResultDialog('Gagal menghapus operasi','Operasi tidak berhasil dihapus.\n'+e.message,false);
-  }
+    showCrudSuccess('Operasi berhasil dihapus dari database.');
+  }catch(e){ showCrudError('Hapus operasi',e); }
 }
 // ---------- PARSER ----------
 function normPhone(s){ return (s||'').replace(/[^0-9+]/g,'').trim(); }
@@ -339,26 +324,25 @@ function formatDateTime(r){
 
 // ---------- CRUD / DATABASE ----------
 async function upsertRecord(data,id){
-  const saved=await apiFetch(id?('/records/'+encodeURIComponent(id)):'/records',{
-    method:id?'PUT':'POST',
-    body:JSON.stringify({...data,...(id?{id}: {})})
-  });
-  const idx=records.findIndex(r=>r.id===saved.id);
-  if(idx>=0) records[idx]=saved; else records.push(saved);
-  return saved.id;
+  try{
+    const saved=await apiFetch(id?('/records/'+encodeURIComponent(id)):'/records',{
+      method:id?'PUT':'POST', body:JSON.stringify({...data,...(id?{id}: {})})
+    });
+    const idx=records.findIndex(r=>r.id===saved.id);
+    if(idx>=0) records[idx]=saved; else records.push(saved);
+    return saved.id;
+  }catch(e){
+    toast('⚠ Gagal menyimpan data: '+e.message,'warn');
+    throw e;
+  }
 }
 async function refreshData(){
-  try{
-    await Promise.all([load(),loadOps()]);
-    ensureNumbering(); highlightId=null; renderApp(); toast('✓ Data diperbarui.');
-  }catch(e){
-    showResultDialog('Refresh gagal','Data tidak dapat diperbarui dari database.\n'+e.message,false);
-  }
+  await Promise.all([load(),loadOps()]);
+  ensureNumbering(); highlightId=null; renderApp(); toast('✓ Data diperbarui.');
 }
 async function deleteRecord(id){
   await apiFetch('/records/'+encodeURIComponent(id),{method:'DELETE'});
-  records=records.filter(r=>r.id!==id);
-  selectedIds.delete(id);
+  records=records.filter(r=>r.id!==id); selectedIds.delete(id);
 }
 // ---------- RENDER ----------
 const NAV=[['dashboard','Dashboard'],['data','Data Hailing'],['input','Input Hailing'],['stats','Statistics']];
@@ -488,16 +472,14 @@ function clearSelection(){ selectedIds.clear(); renderApp(); }
 function openBulkDelete(){ if(selectedIds.size===0) return; bulkDeleteConfirm=true; renderModal(); }
 async function confirmBulkDelete(){
   const ids=[...selectedIds]; const n=ids.length;
-  if(!ids.length) return;
+  if(!n){ return; }
   try{
     const result=await apiFetch('/records/bulk-delete',{method:'POST',body:JSON.stringify({ids})});
     records=records.filter(r=>!selectedIds.has(r.id));
     selectedIds.clear(); bulkDeleteConfirm=false;
     renderModal(); renderApp();
-    showResultDialog('Berhasil',`${result?.deleted ?? n} data hailing berhasil dihapus dari database.`);
-  }catch(e){
-    showResultDialog('Gagal menghapus',`Tidak ada data yang dihapus.\n${e.message}`,false);
-  }
+    showCrudSuccess((result?.deleted??n)+' data hailing berhasil dihapus dari database.');
+  }catch(e){ showCrudError('Hapus data terpilih',e); }
 }
 function bulkDeleteModalHTML(){
   const n=selectedIds.size;
@@ -677,12 +659,10 @@ async function saveParsed(){
       opsId:opsObj?opsObj.id:undefined,opsName:opsObj?opsObj.name:undefined
     });
     highlightId=newId;
+    toast('✓ Data hailing berhasil disimpan.');
     currentParsed=null; document.getElementById('rawInput').value=''; document.getElementById('previewZone').innerHTML='';
     setPage('data');
-    showResultDialog('Berhasil','Data hailing berhasil disimpan ke database.');
-  }catch(e){
-    showResultDialog('Gagal menyimpan','Data hailing tidak berhasil disimpan.\n'+e.message,false);
-  }
+  }catch(e){}
 }
 
 function renderStats(){
@@ -762,7 +742,7 @@ async function applyImport(mode){
     records=result.records||[];
     await loadOps();
     ensureNumbering(); pendingImportData=null;
-    renderModal(); toast('✓ Data berhasil diimpor ke SQLite.'); renderApp();
+    renderModal(); showCrudSuccess('Data berhasil diimpor ke database.'); renderApp();
   }catch(e){ toast('⚠ Import gagal: '+e.message,'warn'); }
 }
 function viewModalHTML(r){
@@ -831,25 +811,10 @@ async function saveEdit(id){
     return { id:uid(), name, gt: gtRaw || undefined, type: t?t[1].toUpperCase():undefined };
   }).filter(Boolean);
   try{
-    await upsertRecord({
-      date:document.getElementById('e_date').value,
-      time:document.getElementById('e_time').value,
-      posisi:document.getElementById('e_posisi').value||'-',
-      crewCount:document.getElementById('e_abk').value?parseInt(document.getElementById('e_abk').value):undefined,
-      vessels,
-      destination:document.getElementById('e_dest').value,
-      cargo:document.getElementById('e_cargo').value,
-      captain:document.getElementById('e_capt').value,
-      captainPhone:document.getElementById('e_captphone').value,
-      owner:document.getElementById('e_owner').value,
-      ownerPhone:document.getElementById('e_ownerphone').value,
-      company:document.getElementById('e_pt').value
-    }, id);
+    await upsertRecord({ date:document.getElementById('e_date').value, time:document.getElementById('e_time').value, posisi:document.getElementById('e_posisi').value||'-', crewCount: document.getElementById('e_abk').value? parseInt(document.getElementById('e_abk').value):undefined, vessels, destination:document.getElementById('e_dest').value, cargo:document.getElementById('e_cargo').value, captain:document.getElementById('e_capt').value, captainPhone:document.getElementById('e_captphone').value, owner:document.getElementById('e_owner').value, ownerPhone:document.getElementById('e_ownerphone').value, company:document.getElementById('e_pt').value }, id);
     closeModal(); renderApp();
-    showResultDialog('Berhasil','Perubahan data hailing berhasil disimpan ke database.');
-  }catch(e){
-    showResultDialog('Gagal menyimpan','Perubahan tidak berhasil disimpan.\n'+e.message,false);
-  }
+    showCrudSuccess('Perubahan data hailing berhasil disimpan ke database.');
+  }catch(e){ showCrudError('Simpan perubahan',e); }
 }
 function deleteModalHTML(r){
   if(!r) return '';
@@ -865,10 +830,8 @@ async function confirmDelete(id){
   try{
     await deleteRecord(id);
     closeModal(); renderApp();
-    showResultDialog('Berhasil','Data hailing berhasil dihapus dari database.');
-  }catch(e){
-    showResultDialog('Gagal menghapus','Data hailing tidak berhasil dihapus.\n'+e.message,false);
-  }
+    showCrudSuccess('Data hailing berhasil dihapus dari database.');
+  }catch(e){ showCrudError('Hapus data hailing',e); }
 }
 function nominalModalHTML(r){
   if(!r) return '';
@@ -887,27 +850,19 @@ async function confirmNominal(id){
   const input=document.getElementById('nominalInput');
   const raw=input?input.value.trim():'';
   const num=parseInt(raw,10);
-  if(!raw || isNaN(num) || num<0){
-    showResultDialog('Nominal tidak valid','Masukkan nominal angka 0 atau lebih.',false);
-    input?.focus();
-    return;
-  }
+  if(!raw || isNaN(num) || num<0){ const e=new Error('Nominal harus berupa angka 0 atau lebih.'); showCrudError('Simpan nominal',e); input?.focus(); return; }
   try{
     await upsertRecord({ nominal:num }, id);
     closeModal(); renderApp();
-    showResultDialog('Berhasil','Nominal transfer berhasil disimpan ke database.');
-  }catch(e){
-    showResultDialog('Gagal menyimpan nominal','Nominal tidak berhasil disimpan.\n'+e.message,false);
-  }
+    showCrudSuccess('Nominal transfer berhasil disimpan ke database.');
+  }catch(e){ showCrudError('Simpan nominal',e); }
 }
 async function clearNominal(id){
   try{
     await upsertRecord({ nominal:null }, id);
     closeModal(); renderApp();
-    showResultDialog('Berhasil','Nominal transfer berhasil dihapus dari database.');
-  }catch(e){
-    showResultDialog('Gagal menghapus nominal','Nominal tidak berhasil dihapus.\n'+e.message,false);
-  }
+    showCrudSuccess('Nominal transfer berhasil dihapus dari database.');
+  }catch(e){ showCrudError('Hapus nominal',e); }
 }
 function openManageOps(){ manageOpsOpen=true; renderModal(); }
 function closeManageOps(){ manageOpsOpen=false; opsSearchQuery=''; renderModal(); renderApp(); }
@@ -942,8 +897,8 @@ async function confirmAddOpsInline(){
     opsList.push(o);
     if(input) input.value='';
     renderOpsListContainer();
-    showResultDialog('Berhasil','Operasi baru berhasil ditambahkan ke database.');
-  }catch(e){ showResultDialog('Gagal menambahkan operasi','Operasi tidak berhasil ditambahkan.\n'+e.message,false); }
+    showCrudSuccess('Operasi berhasil ditambahkan ke database.');
+  }catch(e){ toast('⚠ Gagal menambahkan operasi: '+e.message,'warn'); }
 }
 function openColumnPicker(){ columnPickerOpen=true; renderModal(); }
 function closeColumnPicker(){ columnPickerOpen=false; renderModal(); }

@@ -1,69 +1,29 @@
-# KRI KUJANG Hailing Log — Vercel + Neon
+# KRI KUJANG Hailing Log — Vercel + Neon (CRUD Final)
 
-Versi ini dibuat khusus untuk deployment Vercel dengan database PostgreSQL Neon.
+## Architecture
+- Frontend: `index.html`
+- API: Vercel Serverless Functions
+- Database: Neon PostgreSQL
+- Master seed: `data/master.json`
 
-## Struktur
-
-- `index.html` — frontend existing
-- `api/[...path].js` — REST API serverless
-- `api/_db.js` — koneksi + schema PostgreSQL
-- `data/master.json` — master data 49 record untuk seed awal
-- `vercel.json` — konfigurasi Vercel
-
-## Environment Variable
-
-Di Vercel → Project → Settings → Environment Variables, tambahkan:
-
-`DATABASE_URL`
-
-Connection string PostgreSQL dari Neon.
-
-Kode juga mengenali `POSTGRES_URL`, `POSTGRES_PRISMA_URL`, dan `NEON_DATABASE_URL` jika `DATABASE_URL` tidak tersedia.
-
-## Deploy
-
-1. Upload repository ini ke GitHub.
-2. Import repository ke Vercel.
-3. Pastikan Environment Variable database tersedia untuk Production/Preview sesuai kebutuhan.
-4. Deploy/Re-deploy.
-5. Buka `/api/health` pada domain Vercel.
-
-Contoh response:
-
-```json
-{"ok":true,"database":"neon-postgresql","records":49,"dbTime":"..."}
-```
-
-## API
-
+## API routes
 - `GET /api/health`
-- `GET /api/records`
-- `POST /api/records`
-- `PUT /api/records/:id`
-- `DELETE /api/records/:id`
+- `GET/POST /api/records`
+- `GET/PUT/DELETE /api/records/:id`
 - `POST /api/records/bulk-delete`
-- `GET /api/operations`
-- `POST /api/operations`
+- `GET/POST /api/operations`
 - `DELETE /api/operations/:id`
 - `POST /api/import`
 
-## Perbaikan Vercel
+## Important
+This version intentionally does **not** use one catch-all API file. Each CRUD route has its own Vercel function so that POST/PUT/DELETE routing is explicit and does not depend on catch-all path parsing.
 
-Handler menerima JSON melalui `req.body` jika Vercel sudah mem-parsing request, dan memiliki fallback pembacaan stream untuk runtime Node lain. Ini penting untuk operasi POST/PUT seperti Input Hailing, Edit, Nominal, dan Import.
+## Deploy
+1. Upload this project to GitHub.
+2. Import the repository into Vercel.
+3. Add Environment Variable:
+   - `DATABASE_URL` = Neon PostgreSQL connection string.
+4. Deploy / Redeploy.
+5. Open `/api/health` and verify `ok: true` and the expected record count.
 
-## Database
-
-Tabel:
-
-- `operations`
-- `hailing_records`
-- `vessels`
-
-Saat database kosong, `data/master.json` akan digunakan sebagai seed otomatis.
-
-
-## CRUD FIXED (Vercel)
-- Added robust result dialog for success/failure on Hailing CRUD, nominal CRUD, and Operations CRUD.
-- Fixed partial record updates so adding/editing/removing nominal does not erase vessel data.
-- Fixed bulk-delete route ordering in the Vercel catch-all API.
-- Redeploy the entire project after replacing the current deployment.
+No SQLite file is used in Vercel. The first API request creates the tables and seeds `data/master.json` when the database is empty.
