@@ -206,13 +206,22 @@ async function saveRecord(input, id = null) {
 }
 
 async function readBody(req) {
+  // Vercel's Node runtime may expose an already-parsed JSON body.
+  if (req.body !== undefined && req.body !== null) {
+    if (typeof req.body === 'object') return req.body;
+    if (typeof req.body === 'string') {
+      try { return req.body ? JSON.parse(req.body) : {}; }
+      catch { throw new Error('JSON request tidak valid'); }
+    }
+  }
+
   return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', chunk => {
       body += chunk;
       if (body.length > 10 * 1024 * 1024) {
         reject(new Error('Payload terlalu besar'));
-        req.destroy();
+        if (typeof req.destroy === 'function') req.destroy();
       }
     });
     req.on('end', () => {
@@ -224,6 +233,11 @@ async function readBody(req) {
 }
 
 module.exports = async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+
   try {
     await ensureInitialized();
     const url = new URL(req.url, `https://${req.headers.host || 'localhost'}`);
@@ -231,7 +245,8 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'GET' && pathname === '/api/health') {
       const count = await sql`SELECT COUNT(*)::int AS count FROM hailing_records`;
-      return res.status(200).json({ ok: true, database: 'neon-postgresql', records: count[0].count });
+      const dbCheck = await sql`SELECT NOW() AS now`;
+      return res.status(200).json({ ok: true, database: 'neon-postgresql', records: count[0].count, dbTime: dbCheck[0].now });
     }
 
     if (req.method === 'GET' && pathname === '/api/operations') {

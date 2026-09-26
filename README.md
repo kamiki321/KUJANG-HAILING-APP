@@ -1,100 +1,38 @@
-# KRI KUJANG Hailing Log — Vercel Edition
+# KRI KUJANG Hailing Log — Vercel + Neon
 
-Versi deployment online menggunakan **Vercel + Neon PostgreSQL**.
+Versi ini dibuat khusus untuk deployment Vercel dengan database PostgreSQL Neon.
 
-## Arsitektur
+## Struktur
 
-- Frontend: `index.html`
-- API: `api/[...path].js`
-- Database: Neon PostgreSQL
-- Seed/master data: `data/master.json`
-- Hosting: Vercel
+- `index.html` — frontend existing
+- `api/[...path].js` — REST API serverless
+- `api/_db.js` — koneksi + schema PostgreSQL
+- `data/master.json` — master data 49 record untuk seed awal
+- `vercel.json` — konfigurasi Vercel
 
-SQLite lokal dari versi desktop tidak digunakan di Vercel karena filesystem serverless tidak cocok untuk database file yang harus persisten.
+## Environment Variable
 
-## Deploy paling mudah
+Di Vercel → Project → Settings → Environment Variables, tambahkan:
 
-### 1. Upload project ke GitHub
+`DATABASE_URL`
 
-Buat repository baru lalu upload seluruh isi folder ini.
+Connection string PostgreSQL dari Neon.
 
-### 2. Import repository ke Vercel
+Kode juga mengenali `POSTGRES_URL`, `POSTGRES_PRISMA_URL`, dan `NEON_DATABASE_URL` jika `DATABASE_URL` tidak tersedia.
 
-Di Vercel pilih **Add New → Project**, lalu pilih repository GitHub.
+## Deploy
 
-### 3. Hubungkan Neon
+1. Upload repository ini ke GitHub.
+2. Import repository ke Vercel.
+3. Pastikan Environment Variable database tersedia untuk Production/Preview sesuai kebutuhan.
+4. Deploy/Re-deploy.
+5. Buka `/api/health` pada domain Vercel.
 
-Di Vercel tambahkan database PostgreSQL melalui Marketplace/Neon, atau gunakan database Neon yang sudah ada.
+Contoh response:
 
-Pastikan environment variable berikut tersedia pada project:
-
-```text
-DATABASE_URL
+```json
+{"ok":true,"database":"neon-postgresql","records":49,"dbTime":"..."}
 ```
-
-Untuk Production, Preview, dan Development aktifkan sesuai kebutuhan.
-
-### 4. Deploy
-
-Klik **Deploy**.
-
-Pada request pertama API akan:
-
-1. membuat tabel `operations`, `hailing_records`, dan `vessels`;
-2. membuat index;
-3. membaca `data/master.json`;
-4. memasukkan 49 record master apabila database masih kosong.
-
-### 5. Test
-
-Buka:
-
-```text
-https://DOMAIN-VERCEL-ANDA.vercel.app/api/health
-```
-
-Kemudian aplikasi:
-
-```text
-https://DOMAIN-VERCEL-ANDA.vercel.app
-```
-
-## Database
-
-### operations
-- `id TEXT PRIMARY KEY`
-- `name TEXT`
-- `created_at TIMESTAMPTZ`
-- `updated_at TIMESTAMPTZ`
-
-### hailing_records
-- `id TEXT PRIMARY KEY`
-- `no INTEGER`
-- `created_at TIMESTAMPTZ`
-- `updated_at TIMESTAMPTZ`
-- `date TEXT`
-- `time TEXT`
-- `posisi TEXT`
-- `destination TEXT`
-- `cargo TEXT`
-- `crew_count INTEGER`
-- `captain TEXT`
-- `captain_phone TEXT`
-- `owner TEXT`
-- `owner_phone TEXT`
-- `company TEXT`
-- `nominal BIGINT`
-- `raw_input TEXT`
-- `parser_confidence INTEGER`
-- `ops_id TEXT`
-- `ops_name TEXT`
-
-### vessels
-- `id TEXT PRIMARY KEY`
-- `hailing_id TEXT`
-- `name TEXT`
-- `type TEXT`
-- `gt TEXT`
 
 ## API
 
@@ -109,8 +47,16 @@ https://DOMAIN-VERCEL-ANDA.vercel.app
 - `DELETE /api/operations/:id`
 - `POST /api/import`
 
-## Catatan
+## Perbaikan Vercel
 
-Jangan membuka `index.html` dengan `file:///...` untuk versi online. Frontend membutuhkan API Vercel.
+Handler menerima JSON melalui `req.body` jika Vercel sudah mem-parsing request, dan memiliki fallback pembacaan stream untuk runtime Node lain. Ini penting untuk operasi POST/PUT seperti Input Hailing, Edit, Nominal, dan Import.
 
-Untuk backup master, file `data/master.json` tetap disertakan.
+## Database
+
+Tabel:
+
+- `operations`
+- `hailing_records`
+- `vessels`
+
+Saat database kosong, `data/master.json` akan digunakan sebagai seed otomatis.

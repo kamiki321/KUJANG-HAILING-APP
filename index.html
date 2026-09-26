@@ -81,7 +81,8 @@
 const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
 const API_BASE='/api';
 async function apiFetch(path, options={}){
-  const res=await fetch(API_BASE+path,{headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
+  const config={...options,headers:{'Content-Type':'application/json',...(options.headers||{})}};
+  const res=await fetch(API_BASE+path,config);
   const text=await res.text();
   let data=null; try{ data=text?JSON.parse(text):null; }catch(e){ data=null; }
   if(!res.ok) throw new Error(data?.error||`HTTP ${res.status}`);
@@ -796,7 +797,7 @@ function deleteModalHTML(r){
     <button class="btn btn-danger" onclick="confirmDelete('${r.id}')">Hapus</button>
   </div></div></div>`;
 }
-function confirmDelete(id){ deleteRecord(id); toast('✓ Data hailing dihapus.'); closeModal(); renderApp(); }
+async function confirmDelete(id){ try{ await deleteRecord(id); toast('✓ Data hailing dihapus.'); closeModal(); renderApp(); }catch(e){ toast('⚠ Gagal menghapus data: '+e.message,'warn'); } }
 function nominalModalHTML(r){
   if(!r) return '';
   return `<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="card" style="max-width:400px;width:100%;padding:20px;">
