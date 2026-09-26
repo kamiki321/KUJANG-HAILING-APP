@@ -1,29 +1,76 @@
-# KRI KUJANG Hailing Log — Vercel + Neon (CRUD Final)
+# KRI KUJANG Hailing Log — Vercel + Neon CRUD FIXED
 
-## Architecture
-- Frontend: `index.html`
-- API: Vercel Serverless Functions
-- Database: Neon PostgreSQL
-- Master seed: `data/master.json`
+Versi ini memakai Vercel Serverless Functions + Neon PostgreSQL.
 
-## API routes
+## Endpoint
+
 - `GET /api/health`
-- `GET/POST /api/records`
-- `GET/PUT/DELETE /api/records/:id`
+- `GET /api/records`
+- `POST /api/records`
+- `GET /api/record?id=...`
+- `PUT /api/record?id=...`
+- `DELETE /api/record?id=...`
 - `POST /api/records/bulk-delete`
-- `GET/POST /api/operations`
-- `DELETE /api/operations/:id`
+- `GET /api/operations`
+- `POST /api/operations`
+- `DELETE /api/operation?id=...`
 - `POST /api/import`
 
-## Important
-This version intentionally does **not** use one catch-all API file. Each CRUD route has its own Vercel function so that POST/PUT/DELETE routing is explicit and does not depend on catch-all path parsing.
+### Mengapa `/api/record?id=` dan `/api/operation?id=`?
+
+Vercel deployment sebelumnya mengembalikan 404 untuk dynamic function path `/api/records/:id` dan `/api/operations/:id`. Versi ini menggunakan function file statis + query parameter untuk menghilangkan masalah routing tersebut.
+
+## Database
+
+Environment variable yang wajib:
+
+```text
+DATABASE_URL=postgresql://...neon.tech/...?...sslmode=require
+```
+
+Schema:
+
+- `operations`
+- `hailing_records`
+- `vessels`
+
+Delete record dan delete operation secara eksplisit melepaskan child/reference terlebih dahulu. Ini membuat aplikasi tetap kompatibel dengan database Neon yang sebelumnya dibuat dengan definisi foreign key lama.
+
+## Import
+
+Import menggunakan bulk PostgreSQL JSON ingestion (`jsonb_to_recordset`) agar tidak melakukan ratusan request database satu per satu. Mode `replace` menghapus child table terlebih dahulu (`vessels` → `hailing_records` → `operations`) sehingga tidak terkena foreign-key constraint dari schema lama.
+
+## Frontend feedback
+
+Operasi CRUD/import menampilkan dialog `Berhasil` atau `Gagal` setelah response database diterima.
 
 ## Deploy
-1. Upload this project to GitHub.
-2. Import the repository into Vercel.
-3. Add Environment Variable:
-   - `DATABASE_URL` = Neon PostgreSQL connection string.
-4. Deploy / Redeploy.
-5. Open `/api/health` and verify `ok: true` and the expected record count.
 
-No SQLite file is used in Vercel. The first API request creates the tables and seeds `data/master.json` when the database is empty.
+1. Upload seluruh folder project ke GitHub.
+2. Hubungkan repository ke Vercel.
+3. Set `DATABASE_URL` pada Environment Variables Production.
+4. Deploy ulang tanpa cache bila perlu.
+5. Tes:
+   - `/api/health`
+   - `/api/records`
+
+## Validasi yang sudah dilakukan
+
+Automated mock integration test telah dijalankan untuk:
+
+- health
+- GET records
+- GET operations
+- POST record
+- PUT record
+- DELETE record satu per satu
+- bulk delete
+- POST operation
+- DELETE operation dengan record yang masih mereferensikannya
+- import replace
+- frontend JavaScript syntax
+- seluruh API JavaScript syntax
+
+Hasil: seluruh skenario mock API di atas mengembalikan status yang diharapkan dan test berakhir dengan `ALL API MOCK TESTS PASSED`.
+
+Catatan: pengujian mock tidak menggantikan pengujian terhadap database Neon production. Setelah deploy, tetap lakukan smoke test pada URL Vercel.

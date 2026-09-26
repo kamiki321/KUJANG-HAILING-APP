@@ -80,6 +80,8 @@
 <script>
 const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
 const API_BASE='/api';
+const recordApiPath=(id)=>`/record?id=${encodeURIComponent(id)}`;
+const operationApiPath=(id)=>`/operation?id=${encodeURIComponent(id)}`;
 async function apiFetch(path, options={}){
   const res=await fetch(API_BASE+path,{headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
   const text=await res.text();
@@ -151,13 +153,13 @@ async function confirmAddOps(){
     const o=await apiFetch('/operations',{method:'POST',body:JSON.stringify({name})});
     opsList.push(o); selectedOpsId=o.id; addingOps=false;
     renderModal(); renderApp(); showCrudSuccess('Operasi berhasil ditambahkan ke database.');
-  }catch(e){ toast('⚠ Gagal menambahkan operasi: '+e.message,'warn'); }
+  }catch(e){ showCrudError('Tambah operasi',e); }
 }
 function openAddOps(){ addingOps=true; renderModal(); }
 function openDeleteOps(id){ deletingOpsId=id; renderModal(); }
 async function confirmDeleteOps(id){
   try{
-    await apiFetch('/operations/'+encodeURIComponent(id),{method:'DELETE'});
+    await apiFetch(operationApiPath(id),{method:'DELETE'});
     opsList=opsList.filter(x=>x.id!==id);
     if(selectedOpsId===id) selectedOpsId='';
     if(filters.opsId===id) filters.opsId='';
@@ -325,7 +327,7 @@ function formatDateTime(r){
 // ---------- CRUD / DATABASE ----------
 async function upsertRecord(data,id){
   try{
-    const saved=await apiFetch(id?('/records/'+encodeURIComponent(id)):'/records',{
+    const saved=await apiFetch(id?recordApiPath(id):'/records',{
       method:id?'PUT':'POST', body:JSON.stringify({...data,...(id?{id}: {})})
     });
     const idx=records.findIndex(r=>r.id===saved.id);
@@ -341,7 +343,7 @@ async function refreshData(){
   ensureNumbering(); highlightId=null; renderApp(); toast('✓ Data diperbarui.');
 }
 async function deleteRecord(id){
-  await apiFetch('/records/'+encodeURIComponent(id),{method:'DELETE'});
+  await apiFetch(recordApiPath(id),{method:'DELETE'});
   records=records.filter(r=>r.id!==id); selectedIds.delete(id);
 }
 // ---------- RENDER ----------
@@ -659,7 +661,7 @@ async function saveParsed(){
       opsId:opsObj?opsObj.id:undefined,opsName:opsObj?opsObj.name:undefined
     });
     highlightId=newId;
-    toast('✓ Data hailing berhasil disimpan.');
+    showCrudSuccess('Data hailing berhasil disimpan ke database.');
     currentParsed=null; document.getElementById('rawInput').value=''; document.getElementById('previewZone').innerHTML='';
     setPage('data');
   }catch(e){}
@@ -743,7 +745,7 @@ async function applyImport(mode){
     await loadOps();
     ensureNumbering(); pendingImportData=null;
     renderModal(); showCrudSuccess('Data berhasil diimpor ke database.'); renderApp();
-  }catch(e){ toast('⚠ Import gagal: '+e.message,'warn'); }
+  }catch(e){ showCrudError('Import data',e); }
 }
 function viewModalHTML(r){
   if(!r) return '';
@@ -898,7 +900,7 @@ async function confirmAddOpsInline(){
     if(input) input.value='';
     renderOpsListContainer();
     showCrudSuccess('Operasi berhasil ditambahkan ke database.');
-  }catch(e){ toast('⚠ Gagal menambahkan operasi: '+e.message,'warn'); }
+  }catch(e){ showCrudError('Tambah operasi',e); }
 }
 function openColumnPicker(){ columnPickerOpen=true; renderModal(); }
 function closeColumnPicker(){ columnPickerOpen=false; renderModal(); }
