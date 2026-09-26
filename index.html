@@ -118,7 +118,7 @@ function showCrudSuccess(message){ toast('✓ '+message); showResultDialog('Berh
 function showCrudError(action,error){ const msg=action+' gagal.\n'+(error?.message||'Terjadi kesalahan pada server/database.'); toast('⚠ '+msg,'warn'); showResultDialog('Gagal',msg,false); }
 let records=[]; let opsList=[]; let selectedOpsId=''; let page='dashboard'; let editingId=null; let viewingId=null; let deletingId=null; let highlightId=null;
 let addingOps=false; let deletingOpsId=null; let pendingImportData=null; let nominalTargetId=null;
-let manageOpsOpen=false; let opsSearchQuery=''; let columnPickerOpen=false; let selectedIds=new Set(); let bulkDeleteConfirm=false; let deleteInFlight=new Set();
+let manageOpsOpen=false; let opsSearchQuery=''; let columnPickerOpen=false; let selectedIds=new Set(); let bulkDeleteConfirm=false;
 const COLS=['datetime','no','posisi','nama','tonase','tujuan','muatan','abk','captain','hpcaptain','owner','hpowner','pt','transfer','nominal'];
 const COL_LABELS={datetime:'Date/Time',no:'No',posisi:'Posisi',nama:'Nama',tonase:'Tonase',tujuan:'Tujuan',muatan:'Muatan',abk:'ABK',captain:'Captain',hpcaptain:'HP Captain',owner:'Owner',hpowner:'HP Owner',pt:'PT',transfer:'Transfer',nominal:'Nominal'};
 let visibleColumns=[...COLS];
@@ -343,15 +343,8 @@ async function refreshData(){
   ensureNumbering(); highlightId=null; renderApp(); toast('✓ Data diperbarui.');
 }
 async function deleteRecord(id){
-  if(deleteInFlight.has(id)) return {id, deleted:0, alreadyInProgress:true};
-  deleteInFlight.add(id);
-  try{
-    const result=await apiFetch(recordApiPath(id),{method:'DELETE'});
-    records=records.filter(r=>r.id!==id); selectedIds.delete(id);
-    return result;
-  }finally{
-    deleteInFlight.delete(id);
-  }
+  await apiFetch(recordApiPath(id),{method:'DELETE'});
+  records=records.filter(r=>r.id!==id); selectedIds.delete(id);
 }
 // ---------- RENDER ----------
 const NAV=[['dashboard','Dashboard'],['data','Data Hailing'],['input','Input Hailing'],['stats','Statistics']];
@@ -836,17 +829,11 @@ function deleteModalHTML(r){
   </div></div></div>`;
 }
 async function confirmDelete(id){
-  if(deleteInFlight.has(id)) return;
-  const btn=document.querySelector('#modalRoot .btn-danger');
-  if(btn){ btn.disabled=true; btn.textContent='Menghapus...'; btn.style.opacity='.65'; btn.style.pointerEvents='none'; }
   try{
-    const result=await deleteRecord(id);
+    await deleteRecord(id);
     closeModal(); renderApp();
-    showCrudSuccess(result?.alreadyDeleted ? 'Data hailing sudah tidak ada di database.' : 'Data hailing berhasil dihapus dari database.');
-  }catch(e){
-    closeModal();
-    showCrudError('Hapus data hailing',e);
-  }
+    showCrudSuccess('Data hailing berhasil dihapus dari database.');
+  }catch(e){ showCrudError('Hapus data hailing',e); }
 }
 function nominalModalHTML(r){
   if(!r) return '';

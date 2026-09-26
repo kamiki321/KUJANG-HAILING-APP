@@ -20,15 +20,13 @@ module.exports = async (req, res) => {
 
     if (req.method === 'DELETE') {
       const existing = await getRecord(id);
-      // DELETE is intentionally idempotent here. A double-click, browser retry,
-      // or stale UI must not turn a successful deletion into a false failure.
-      if (!existing) return json(res, 200, { ok: true, id, deleted: 0, alreadyDeleted: true });
+      if (!existing) return json(res, 404, { error: 'Record tidak ditemukan' });
       // Explicit child delete keeps this working even when an older Neon schema
       // was created without ON DELETE CASCADE.
       await sql`DELETE FROM vessels WHERE hailing_id=${id}`;
       const result = await sql`DELETE FROM hailing_records WHERE id=${id}`;
-      if (!Number(result.count || 0)) return json(res, 200, { ok: true, id, deleted: 0, alreadyDeleted: true });
-      return json(res, 200, { ok: true, id, deleted: 1, alreadyDeleted: false });
+      if (!Number(result.count || 0)) return json(res, 404, { error: 'Record tidak ditemukan' });
+      return json(res, 200, { ok: true, id, deleted: 1 });
     }
 
     return json(res, 405, { error: 'Method not allowed' });
