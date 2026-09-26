@@ -1,64 +1,51 @@
-# KRI KUJANG Hailing Log — Vercel + Neon + Authentication
+# KRI KUJANG Hailing Log — Vercel + Neon PostgreSQL
 
-## Authentication
+## Vercel Hobby: single Serverless Function
 
-The application now requires login before the dashboard/API can be accessed.
+This version consolidates the entire API into **one Vercel Serverless Function**:
 
-Default account:
-- Username: `kujang642`
-- Password: `Kujang642Satkat1#`
-
-The default password is represented in the server source only as a precomputed **scrypt hash**. The database never stores the plaintext password.
-
-Recommended Vercel environment variables:
-- `DATABASE_URL` — Neon connection string
-- `AUTH_JWT_SECRET` — random secret, minimum 32 characters
-- `DEFAULT_ADMIN_USERNAME` — defaults to `kujang642`
-- `DEFAULT_ADMIN_PASSWORD` — optional; if provided, it must satisfy the password rules
-
-## Password validation
-
-Minimum 8 characters, at least:
-- 1 uppercase letter
-- 1 number
-- 1 special character
-
-Validation exists in both the browser and backend.
-
-## Token/session design
-
-- Access token: short-lived HMAC-SHA256 JWT (15 minutes), held by the browser in sessionStorage.
-- Refresh token: cryptographically random opaque token, stored only as a SHA-256 hash in `user_sessions` and sent to the browser as an HttpOnly + Secure + SameSite=Lax cookie for 30 days.
-- Refresh rotation: each refresh invalidates the previous refresh session and creates a new one.
-- Logout: revokes the refresh session and clears the cookie.
-- Browser refresh/reopen: the HttpOnly refresh cookie silently creates a new access token, keeping the user logged in.
-
-## Database tables
-
-Required user table:
-
-```sql
-CREATE TABLE "user" (
-  id SERIAL PRIMARY KEY,
-  username TEXT NOT NULL UNIQUE,
-  password TEXT NOT NULL,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+```text
+api/index.js
 ```
 
-Additional session table:
+All API paths are internally dispatched by `api/index.js`. The implementation modules live outside the `api/` directory under `lib/api-internal/`, so Vercel does not count them as additional Serverless Functions.
 
-```sql
-CREATE TABLE user_sessions (
-  id TEXT PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
-  token_hash TEXT NOT NULL UNIQUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  expires_at TIMESTAMPTZ NOT NULL,
-  revoked_at TIMESTAMPTZ NULL,
-  last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+### API endpoints
+
+- `GET /api/health`
+- `POST /api/auth-login`
+- `POST /api/auth-refresh`
+- `POST /api/auth-logout`
+- `GET /api/auth-me`
+- `GET /api/records`
+- `POST /api/records`
+- `GET /api/record?id=...`
+- `PUT /api/record?id=...`
+- `DELETE /api/record?id=...`
+- `POST /api/records/bulk-delete`
+- `GET /api/operations`
+- `POST /api/operations`
+- `DELETE /api/operation?id=...`
+- `POST /api/import`
+
+## Environment variables
+
+Set these in Vercel:
+
+```text
+DATABASE_URL=...
+AUTH_JWT_SECRET=...
+DEFAULT_ADMIN_USERNAME=kujang642
+DEFAULT_ADMIN_PASSWORD=...
 ```
 
-The existing hailing/operations/vessels tables and CRUD/import behavior are retained.
+`AUTH_JWT_SECRET` should be at least 32 random characters.
+
+## Deploy
+
+1. Extract this ZIP.
+2. Import the project into Vercel.
+3. Configure the environment variables above.
+4. Deploy.
+
+The existing Neon database is used; this refactor does not intentionally reset the application data.
