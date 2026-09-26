@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { sql, initDatabase } = require('./_db');
+const { ensureAuthDatabase } = require('./_auth');
 
 const MASTER_FILE = path.join(process.cwd(), 'data', 'master.json');
 let initialized = false;
@@ -101,6 +102,7 @@ async function ensureInitialized() {
   if (!initPromise) {
     initPromise = (async () => {
       await initDatabase();
+      await ensureAuthDatabase();
       await seedMasterIfEmpty();
       initialized = true;
     })().catch(e => {

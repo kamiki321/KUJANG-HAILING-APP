@@ -1,10 +1,12 @@
 const { cors, json, body, ensureInitialized, getRecord, saveRecord, sql } = require('./_lib');
+const { requireAuth } = require('./_auth');
 
 module.exports = async (req, res) => {
   cors(res);
   if (req.method === 'OPTIONS') return res.status(204).end();
   try {
     await ensureInitialized();
+    await requireAuth(req);
     const id = String(req.query?.id || '').trim();
     if (!id) return json(res, 400, { error: 'ID data hailing wajib diisi' });
 
@@ -35,6 +37,6 @@ module.exports = async (req, res) => {
     return json(res, 405, { error: 'Method not allowed' });
   } catch (e) {
     console.error('record route error', e);
-    return json(res, 500, { error: e.message || 'Server error' });
+    return json(res, e.status || 500, { error: e.message || 'Server error' });
   }
 };

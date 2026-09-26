@@ -1,4 +1,5 @@
 const { cors, json, body, ensureInitialized, allRecords, sql } = require('./_lib');
+const { requireAuth } = require('./_auth');
 
 function cleanString(v) {
   return v == null ? null : String(v);
@@ -77,6 +78,7 @@ module.exports = async (req, res) => {
 
   try {
     await ensureInitialized();
+    await requireAuth(req);
     if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
     const payloadBody = await body(req);
