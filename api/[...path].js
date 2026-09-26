@@ -135,6 +135,17 @@ async function saveRecord(input, id = null) {
     existing = rows[0] || null;
   }
 
+  let existingVessels = [];
+  if (existing) {
+    const vesselRows = await sql`SELECT id, name, type, gt FROM vessels WHERE hailing_id = ${id} ORDER BY id`;
+    existingVessels = vesselRows.map(v => ({
+      id: v.id,
+      name: v.name,
+      ...(v.type ? { type: v.type } : {}),
+      ...(v.gt != null ? { gt: v.gt } : {})
+    }));
+  }
+
   const existingObject = existing ? {
     id: existing.id,
     no: existing.no,
@@ -155,7 +166,8 @@ async function saveRecord(input, id = null) {
     rawInput: existing.raw_input,
     parserConfidence: existing.parser_confidence,
     opsId: existing.ops_id,
-    opsName: existing.ops_name
+    opsName: existing.ops_name,
+    vessels: existingVessels
   } : {};
 
   const r = normalizeRecord({ ...input, id: id || input?.id }, existingObject);
@@ -262,6 +274,18 @@ module.exports = async function handler(req, res) {
       return res.status(201).json(await saveRecord(await readBody(req)));
     }
 
+    if (pathname === '/api/records/bulk-delete' && req.method === 'POST') {
+      const { ids = [] } = await readBody(req);
+      if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids harus array' });
+      const uniqueIds = [...new Set(ids.map(v => String(v)).filter(Boolean))];
+      let deleted = 0;
+      for (const id of uniqueIds) {
+        const result = await sql`DELETE FROM hailing_records WHERE id = ${id}`;
+        deleted += Number(result.count || 0);
+      }
+      return res.status(200).json({ ok: true, deleted });
+    }
+
     const recordMatch = pathname.match(/^\/api\/records\/([^/]+)$/);
     if (recordMatch) {
       const id = decodeURIComponent(recordMatch[1]);
@@ -273,17 +297,6 @@ module.exports = async function handler(req, res) {
         const result = await sql`DELETE FROM hailing_records WHERE id = ${id}`;
         return result.count ? res.status(200).json({ ok: true }) : res.status(404).json({ error: 'Record tidak ditemukan' });
       }
-    }
-
-    if (pathname === '/api/records/bulk-delete' && req.method === 'POST') {
-      const { ids = [] } = await readBody(req);
-      if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids harus array' });
-      let deleted = 0;
-      for (const id of ids) {
-        const result = await sql`DELETE FROM hailing_records WHERE id = ${id}`;
-        deleted += result.count || 0;
-      }
-      return res.status(200).json({ ok: true, deleted });
     }
 
     if (pathname === '/api/operations' && req.method === 'POST') {

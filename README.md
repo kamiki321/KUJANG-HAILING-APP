@@ -60,3 +60,10 @@ Tabel:
 - `vessels`
 
 Saat database kosong, `data/master.json` akan digunakan sebagai seed otomatis.
+
+
+## CRUD FIXED (Vercel)
+- Added robust result dialog for success/failure on Hailing CRUD, nominal CRUD, and Operations CRUD.
+- Fixed partial record updates so adding/editing/removing nominal does not erase vessel data.
+- Fixed bulk-delete route ordering in the Vercel catch-all API.
+- Redeploy the entire project after replacing the current deployment.
