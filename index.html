@@ -54,43 +54,10 @@
   .barfill-h{transition:height .8s cubic-bezier(.2,.8,.3,1);}
   @keyframes rowPulse{0%,100%{background:rgba(200,162,74,.28);}50%{background:rgba(200,162,74,.12);}}
   tr.row-new td{animation:rowPulse 1.8s ease-in-out infinite;}
-
-  #authScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(145deg,#07162f,#0b1e3d 55%,#122a52);}
-  .login-card{width:min(430px,100%);background:var(--card);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:30px;box-shadow:0 24px 80px rgba(0,0,0,.35);}
-  .login-logo{width:58px;height:58px;border-radius:16px;background:var(--navy);color:#fff;display:grid;place-items:center;font-size:28px;margin:0 auto 14px;}
-  .login-field{position:relative;margin-top:6px;}
-  .login-field input{width:100%;padding:11px 44px 11px 12px;}
-  .password-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--gray);cursor:pointer;font-size:18px;padding:5px;}
-  .password-hint{font-size:11px;line-height:1.45;margin-top:6px;min-height:32px;color:var(--gray);}
-  .password-hint.invalid{color:#c0392b;}
-  .password-hint.valid{color:#17834b;}
-  .login-error{font-size:12px;color:#c0392b;margin-top:8px;display:none;}
-  .user-badge{font-size:12px;color:#dce5f5;padding:7px 9px;border:1px solid #3a4a6d;border-radius:6px;white-space:nowrap;}
-
 </style>
 </head>
 <body>
-<div id="authScreen">
-  <div class="login-card">
-    <div class="login-logo">⚓</div>
-    <div style="text-align:center;font-size:21px;font-weight:800;letter-spacing:.02em;">KRI KUJANG</div>
-    <div style="text-align:center;font-size:11px;color:var(--gray);letter-spacing:.12em;margin-top:3px;margin-bottom:24px;">HAILING LOG — LOGIN</div>
-    <form onsubmit="event.preventDefault();loginUser();">
-      <label style="font-size:12px;font-weight:700;">Username</label>
-      <div class="login-field"><input id="loginUsername" autocomplete="username" maxlength="100" placeholder="Masukkan username"></div>
-      <label style="display:block;font-size:12px;font-weight:700;margin-top:14px;">Password</label>
-      <div class="login-field">
-        <input id="loginPassword" type="password" autocomplete="current-password" maxlength="200" placeholder="Masukkan password" oninput="validateLoginPassword()">
-        <button type="button" class="password-toggle" aria-label="Tampilkan password" onclick="toggleLoginPassword()" id="passwordToggle">👁</button>
-      </div>
-      <div id="passwordHint" class="password-hint">Minimal 8 karakter, 1 uppercase, 1 angka, dan 1 karakter special.</div>
-      <div id="loginError" class="login-error"></div>
-      <button id="loginButton" class="btn" type="submit" style="width:100%;margin-top:8px;padding:11px;">Masuk</button>
-    </form>
-  </div>
-</div>
-
-<header style="display:none;" id="appHeader">
+<header>
   <div style="max-width:1200px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
     <div style="display:flex;align-items:center;gap:10px;">
       <span style="font-size:24px;">⚓</span>
@@ -98,9 +65,7 @@
       <div style="font-size:10.5px;color:#a9b6d3;letter-spacing:.08em;">HAILING LOG</div></div>
     </div>
     <nav style="display:flex;gap:4px;overflow-x:auto;" id="nav"></nav>
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-      <span class="user-badge" id="userBadge">-</span>
-      <button class="btn btn-outline" style="color:#fff;border-color:#3a4a6d" onclick="logoutUser()">Logout</button>
+    <div style="display:flex;gap:6px;">
       <button class="btn btn-outline" style="color:#fff;border-color:#3a4a6d" onclick="document.getElementById('importFile').click()">Import</button>
       <input id="importFile" type="file" accept=".json" style="display:none" onchange="handleImportFile(event)">
       <button class="btn btn-gold" onclick="exportExcel()">Excel</button>
@@ -117,102 +82,12 @@ const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
 const API_BASE='/api';
 const recordApiPath=(id)=>`/record?id=${encodeURIComponent(id)}`;
 const operationApiPath=(id)=>`/operation?id=${encodeURIComponent(id)}`;
-let accessToken = sessionStorage.getItem('kujang_access_token') || '';
-let currentUser = null;
-let refreshPromise = null;
-async function refreshAccessToken(){
-  if(refreshPromise) return refreshPromise;
-  refreshPromise=(async()=>{
-    const res=await fetch(API_BASE+'/auth-refresh',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'}});
-    const text=await res.text(); let data=null; try{data=text?JSON.parse(text):null;}catch(_){}
-    if(!res.ok){ accessToken=''; sessionStorage.removeItem('kujang_access_token'); throw new Error(data?.error||`HTTP ${res.status}`); }
-    accessToken=data.accessToken||'';
-    if(accessToken) sessionStorage.setItem('kujang_access_token',accessToken);
-    currentUser=data.user||currentUser;
-    updateUserBadge();
-    return accessToken;
-  })().finally(()=>{refreshPromise=null;});
-  return refreshPromise;
-}
-function updateUserBadge(){
-  const el=document.getElementById('userBadge');
-  if(el) el.textContent=currentUser?.username ? '👤 '+currentUser.username : '';
-}
-function handleAuthExpired(){
-  accessToken=''; currentUser=null; sessionStorage.removeItem('kujang_access_token');
-  const h=document.getElementById('appHeader'); if(h) h.style.display='none';
-  const a=document.getElementById('authScreen'); if(a) a.style.display='flex';
-}
-async function apiFetch(path, options={}, retry=true){
-  const isAuthPath=path.startsWith('/auth-');
-  const headers={'Content-Type':'application/json',...(options.headers||{})};
-  if(accessToken) headers.Authorization='Bearer '+accessToken;
-  const res=await fetch(API_BASE+path,{credentials:'same-origin',...options,headers});
+async function apiFetch(path, options={}){
+  const res=await fetch(API_BASE+path,{headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
   const text=await res.text();
   let data=null; try{ data=text?JSON.parse(text):null; }catch(e){ data=null; }
-  if(res.status===401 && retry && !isAuthPath){
-    try{ await refreshAccessToken(); return apiFetch(path,options,false); }
-    catch(_){ handleAuthExpired(); }
-  }
   if(!res.ok) throw new Error(data?.error||`HTTP ${res.status}`);
   return data;
-}
-
-
-function passwordMeetsRule(value){ return /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(value||''); }
-function validateLoginPassword(){
-  const input=document.getElementById('loginPassword'); const hint=document.getElementById('passwordHint'); const btn=document.getElementById('loginButton');
-  if(!input||!hint) return false;
-  const value=input.value||'';
-  if(!value){ hint.textContent='Minimal 8 karakter, 1 uppercase, 1 angka, dan 1 karakter special.'; hint.className='password-hint'; input.style.borderColor=''; if(btn) btn.disabled=false; return false; }
-  const ok=passwordMeetsRule(value);
-  hint.textContent=ok?'Format password valid.':'Format salah: minimal 8 karakter, 1 uppercase, 1 angka, dan 1 karakter special.';
-  hint.className='password-hint '+(ok?'valid':'invalid'); input.style.borderColor=ok?'#17834b':'#c0392b';
-  if(btn) btn.disabled=false;
-  return ok;
-}
-function toggleLoginPassword(){
-  const input=document.getElementById('loginPassword'); const btn=document.getElementById('passwordToggle'); if(!input) return;
-  input.type=input.type==='password'?'text':'password'; if(btn) btn.textContent=input.type==='password'?'👁':'🙈';
-}
-async function loginUser(){
-  const username=document.getElementById('loginUsername')?.value.trim()||''; const password=document.getElementById('loginPassword')?.value||''; const err=document.getElementById('loginError'); const btn=document.getElementById('loginButton');
-  if(err){err.style.display='none';err.textContent='';}
-  if(!username){ if(err){err.textContent='Username wajib diisi.';err.style.display='block';} return; }
-  if(!validateLoginPassword()) return;
-  if(btn){btn.disabled=true;btn.textContent='Memproses...';}
-  try{
-    const res=await fetch(API_BASE+'/auth-login',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
-    const text=await res.text(); let data=null; try{data=text?JSON.parse(text):null;}catch(_){}
-    if(!res.ok) throw new Error(data?.error||`HTTP ${res.status}`);
-    accessToken=data.accessToken; currentUser=data.user; sessionStorage.setItem('kujang_access_token',accessToken);
-    const a=document.getElementById('authScreen'); const h=document.getElementById('appHeader'); if(a) a.style.display='none'; if(h) h.style.display='block';
-    updateUserBadge();
-    await bootstrapData();
-    showResultDialog('LOGIN BERHASIL','SELAMAT DATANG, '+currentUser.username,true);
-  }catch(e){
-    if(err){err.textContent='Username atau password salah.';err.style.display='block';}
-    showResultDialog('Login gagal','Password atau username salah',false);
-  }finally{ if(btn){btn.disabled=false;btn.textContent='Masuk';} }
-}
-async function logoutUser(){
-  try{ await fetch(API_BASE+'/auth-logout',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',...(accessToken?{Authorization:'Bearer '+accessToken}:{})}}); }catch(_){}
-  accessToken=''; currentUser=null; sessionStorage.removeItem('kujang_access_token');
-  const h=document.getElementById('appHeader'); if(h) h.style.display='none';
-  const a=document.getElementById('authScreen'); if(a) a.style.display='flex';
-  const u=document.getElementById('loginUsername'); const p=document.getElementById('loginPassword'); if(u) u.value=''; if(p) p.value=''; validateLoginPassword();
-  showResultDialog('Logout berhasil','Session dan refresh token telah dihapus.',true);
-}
-async function startApp(){
-  try{
-    await refreshAccessToken();
-    const me=await apiFetch('/auth-me',{},false);
-    currentUser=me.user; updateUserBadge();
-    document.getElementById('authScreen').style.display='none'; document.getElementById('appHeader').style.display='block';
-    await bootstrapData();
-  }catch(_){
-    handleAuthExpired();
-  }
 }
 
 // ---------- USER FEEDBACK ----------
@@ -432,7 +307,6 @@ async function handleExcelImportFile(ev){
   }catch(e){ toast('⚠ Gagal membaca file. Pastikan format Excel/CSV sesuai.','warn'); }
   finally{ ev.target.value=''; }
 }
-function escapeHtml(value){ return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;'); }
 function formatVesselNames(r){ return (r.vessels||[]).map(v=>v.name).join('; ')||'-'; }
 function formatVesselTonnage(r){ return (r.vessels||[]).map(v=> v.gt!=null? 'GT. '+v.gt : 'GT. -').join('; ')||'-'; }
 function totalGT(r){ return (r.vessels||[]).reduce((s,v)=>s+(parseFloat(v.gt)||0),0); }
@@ -513,6 +387,16 @@ function animateCounters(){
   });
 }
 
+function setDashboardPendingSearch(value){
+  dashboardPendingSearch=value||'';
+  renderApp();
+  requestAnimationFrame(()=>{
+    const el=document.getElementById('dashboardPendingSearch');
+    if(el){ el.focus(); el.setSelectionRange(el.value.length,el.value.length); }
+  });
+}
+function clearDashboardPendingSearch(){ dashboardPendingSearch=''; renderApp(); }
+
 function renderDashboard(){
   const totalHailing=records.length;
   const todayStr=new Date().toISOString().slice(0,10);
@@ -527,6 +411,15 @@ function renderDashboard(){
       <button class="btn" onclick="setPage('input')">+ Input Hailing</button>
     </div>`;
   }
+  const pendingRecords=records.filter(r=>r.nominal==null || r.nominal==='');
+  const pendingQuery=dashboardPendingSearch.trim().toLowerCase();
+  const pendingFiltered=pendingQuery ? pendingRecords.filter(r=>[
+    r.no, formatVesselNames(r), formatVesselTonnage(r), r.posisi, r.destination, r.cargo,
+    r.crewCount, r.captain, r.captainPhone, r.owner, r.ownerPhone, r.company, r.opsName,
+    formatDateTime(r), 'Belum Transfer'
+  ].join(' ').toLowerCase().includes(pendingQuery)) : pendingRecords;
+  pendingFiltered.sort((a,b)=>(a.no||0)-(b.no||0));
+
   return `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
     <div style="font-weight:800;font-size:16px;">Dashboard</div>
     <div style="display:flex;gap:8px;">
@@ -542,63 +435,20 @@ function renderDashboard(){
     ${statCard('Total Nominal Diterima',totalNominal,null,4,'rupiah')}
   </div>
   <div class="card stat-card" style="padding:14px;animation-delay:450ms;">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
       <div>
-        <div style="font-weight:800;font-size:14px;">Hailing Belum Transfer</div>
-        <div style="font-size:11.5px;color:var(--gray);margin-top:3px;">Menampilkan seluruh data hailing yang berstatus <b>Belum Transfer</b> dan belum memiliki nominal.</div>
+        <div style="font-weight:700;font-size:13.5px;">Data Hailing — Belum Transfer</div>
+        <div style="font-size:11.5px;color:var(--gray);margin-top:3px;">Menampilkan seluruh data dari database yang belum memiliki nominal transfer.</div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:260px;max-width:420px;">
-        <input id="dashboardPendingSearch" class="input" value="${escapeHtml(dashboardPendingSearch)}" placeholder="🔎 Cari nama kapal, owner, PT, tujuan..." oninput="dashboardPendingSearch=this.value;renderDashboardPendingTable()" style="width:100%;" autocomplete="off">
-      </div>
+      <div style="font-size:12px;color:var(--gray);">${pendingFiltered.length} dari ${pendingRecords.length} data</div>
     </div>
-    <div id="dashboardPendingTable">${renderDashboardPendingTableHTML()}</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+      <input id="dashboardPendingSearch" type="search" placeholder="Cari kapal, GT, tujuan, captain, owner, PT..." value="${dashboardPendingSearch.replace(/\"/g,'&quot;')}" style="flex:1;min-width:220px;" oninput="setDashboardPendingSearch(this.value)">
+      ${dashboardPendingSearch?'<button class="btn btn-outline" style="padding:6px 10px;font-size:12px;" onclick="clearDashboardPendingSearch()">✕ Reset</button>':''}
+    </div>
+    ${renderTable(pendingFiltered,false)}
   </div>`;
 }
-
-function dashboardPendingRecords(){
-  const q=(dashboardPendingSearch||'').trim().toLowerCase();
-  let list=records.filter(r=>r.nominal===null || r.nominal===undefined || r.nominal==='');
-  if(q){
-    list=list.filter(r=>[
-      r.no, formatDateTime(r), r.date, r.time, r.posisi, formatVesselNames(r), formatVesselTonnage(r),
-      r.destination, r.cargo, r.crewCount, r.captain, r.captainPhone, r.owner, r.ownerPhone, r.company,
-      r.opsName, 'Belum Transfer'
-    ].join(' ').toLowerCase().includes(q));
-  }
-  return list.sort((a,b)=>(Number(a.no)||0)-(Number(b.no)||0));
-}
-
-function renderDashboardPendingTableHTML(){
-  const list=dashboardPendingRecords();
-  if(list.length===0){
-    return `<div style="padding:28px;text-align:center;color:var(--gray);font-size:13px;">${dashboardPendingSearch.trim()?'Tidak ada data yang cocok dengan pencarian.':'Tidak ada data hailing yang Belum Transfer.'}</div>`;
-  }
-  const rows=list.map((r,i)=>`<tr>
-    <td>${r.no??(i+1)}</td>
-    <td style="white-space:nowrap;">${formatDateTime(r)}</td>
-    <td>${r.posisi||'-'}</td>
-    <td>${formatVesselNames(r)}</td>
-    <td>${formatVesselTonnage(r)}</td>
-    <td>${r.destination||'-'}</td>
-    <td>${r.cargo||'-'}</td>
-    <td>${r.crewCount??'-'}</td>
-    <td>${r.captain||'-'}</td>
-    <td>${r.owner||'-'}</td>
-    <td>${r.company||'-'}</td>
-    <td><span class="badge" style="background:#dc262622;color:#dc2626;">Belum Transfer</span></td>
-    <td>-</td>
-  </tr>`).join('');
-  return `<div style="display:flex;justify-content:flex-end;margin-bottom:8px;font-size:11.5px;color:var(--gray);">${list.length} data ditemukan</div>
-    <div class="scrollx"><table><thead><tr>
-      <th>No</th><th>Date/Time</th><th>Posisi</th><th>Nama</th><th>Tonase</th><th>Tujuan</th><th>Muatan</th><th>ABK</th><th>Captain</th><th>Owner</th><th>PT</th><th>Transfer</th><th>Nominal</th>
-    </tr></thead><tbody>${rows}</tbody></table></div>`;
-}
-
-function renderDashboardPendingTable(){
-  const el=document.getElementById('dashboardPendingTable');
-  if(el) el.innerHTML=renderDashboardPendingTableHTML();
-}
-
 
 function uniqueVals(field){ return [...new Set(records.map(r=>r[field]).filter(Boolean))]; }
 function filteredRecords(){
@@ -1179,7 +1029,7 @@ async function exportPDF(){
 }
 
 // ---------- Init ----------
-startApp();
+bootstrapData();
 </script>
 </body>
 </html>

@@ -1,12 +1,10 @@
 const { cors, json, ensureInitialized, sql } = require('./_lib');
-const { requireAuth } = require('./_auth');
 
 module.exports = async (req, res) => {
   cors(res);
   if (req.method === 'OPTIONS') return res.status(204).end();
   try {
     await ensureInitialized();
-    await requireAuth(req);
     const id = String(req.query?.id || '').trim();
     if (!id) return json(res, 400, { error: 'ID operasi wajib diisi' });
     if (req.method !== 'DELETE') return json(res, 405, { error: 'Method not allowed' });
@@ -21,6 +19,6 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, id, deleted: Number(result.count || 0) });
   } catch (e) {
     console.error('operation route error', e);
-    return json(res, e.status || 500, { error: e.message || 'Server error' });
+    return json(res, 500, { error: e.message || 'Server error' });
   }
 };

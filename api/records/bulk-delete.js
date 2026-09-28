@@ -1,11 +1,9 @@
 const { cors, json, body, ensureInitialized, sql } = require('../_lib');
-const { requireAuth } = require('../_auth');
 module.exports = async (req,res)=>{
   cors(res);
   if(req.method==='OPTIONS') return res.status(204).end();
   try{
     await ensureInitialized();
-    await requireAuth(req);
     if(req.method!=='POST') return json(res,405,{error:'Method not allowed'});
     const b=await body(req);
     const ids=Array.isArray(b.ids)?[...new Set(b.ids.map(String).filter(Boolean))]:[];
@@ -19,6 +17,6 @@ module.exports = async (req,res)=>{
     return json(res,200,{ok:true,deleted});
   }catch(e){
     console.error(e);
-    return json(res,e.status||500,{error:e.message||'Server error'});
+    return json(res,500,{error:e.message||'Server error'});
   }
 };
