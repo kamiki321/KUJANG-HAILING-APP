@@ -57,3 +57,11 @@ Dashboard menampilkan **seluruh record yang Belum Transfer** dari data `records`
 ### Penting
 
 Jangan mencampurkan file `api/` dari versi lama. Struktur `/api` harus berisi tepat enam file JavaScript di atas.
+
+
+## Hierarki Ops → Trip → Hailing
+- Setiap record hailing memiliki field `trip` bertipe PostgreSQL `TEXT`.
+- Flow input: pilih Ops → isi/pilih Trip → input data hailing.
+- Contoh: `Ops. Trisula Jaya - 26` → `Trip 1 : tanggal 23 - 28` → data hailing.
+- Trip yang sudah digunakan ditampilkan sebagai saran saat memilih Ops.
+- Data lama tetap kompatibel; kolom `trip` ditambahkan otomatis melalui migrasi `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`.

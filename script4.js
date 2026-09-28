@@ -1,83 +1,4 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>index.html</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<style>
-  :root{--navy:#0b1e3d;--navy2:#122a52;--gold:#c8a24a;--gray:#6b7280;--bg:#f4f6f9;--card:#ffffff;--border:#e2e6ee;--text:#1a2338;}
-  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0b1220;--card:#131c2e;--border:#25314a;--text:#e8ecf5;--gray:#94a3b8;}}
-  :root[data-theme="dark"]{--bg:#0b1220;--card:#131c2e;--border:#25314a;--text:#e8ecf5;--gray:#94a3b8;}
-  *{box-sizing:border-box}
-  body{background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
-  html{scroll-padding-top:env(safe-area-inset-top,0px);}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;}
-  header{position:sticky;top:0;z-index:20;background:var(--navy);color:#fff;padding:env(safe-area-inset-top,0px) 0 0 0;box-shadow:0 2px 8px rgba(0,0,0,.2);}
-  .navbtn{color:#cfd8ea;padding:8px 12px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
-  .navbtn.active,.navbtn:hover{background:var(--navy2);color:#fff;}
-  .btn{background:var(--navy);color:#fff;border-radius:6px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--navy);}
-  .btn:hover{background:var(--navy2)}
-  .btn-gold{background:var(--gold);border-color:var(--gold);color:#2b2205}
-  .btn-outline{background:transparent;color:var(--text);border:1px solid var(--border);}
-  .btn-danger{background:#b3261e;border-color:#b3261e;color:#fff}
-  input,select,textarea{background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;}
-  table{border-collapse:collapse;width:100%;font-size:12.5px;}
-  th,td{border:1px solid var(--border);padding:6px 8px;text-align:left;vertical-align:top;}
-  th{background:var(--navy);color:#fff;position:sticky;top:0;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;}
-  tr:nth-child(even) td{background:rgba(120,140,180,.06);}
-  .scrollx{overflow-x:auto;border:1px solid var(--border);border-radius:8px;}
-  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
-  .toast{position:fixed;bottom:16px;right:16px;z-index:60;display:flex;flex-direction:column;gap:8px;}
-  .toast-item{background:var(--navy);color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.25);}
-  .toast-item.warn{background:#8a5a00}
-  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;}
-  ::-webkit-scrollbar{height:8px;width:8px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
-  @keyframes fadeInUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
-  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
-  @keyframes slideIn{from{opacity:0;transform:translateX(18px);}to{opacity:1;transform:translateX(0);}}
-  @keyframes growBar{from{width:0;}}
-  .stat-card{animation:fadeInUp .5s cubic-bezier(.2,.7,.3,1) both;}
-  .card{transition:transform .18s ease, box-shadow .18s ease;}
-  .stat-card:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(11,30,61,.12);}
-  .app-anim{animation:fadeIn .28s ease;}
-  .btn,.btn-outline,.btn-gold,.btn-danger{transition:transform .12s ease, background .15s ease, box-shadow .15s ease;}
-  .btn:hover,.btn-gold:hover,.btn-danger:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.15);}
-  .btn:active,.btn-gold:active,.btn-danger:active,.btn-outline:active{transform:scale(.95);}
-  .toast-item{animation:slideIn .3s ease;}
-  tbody tr{transition:background .15s ease;animation:fadeIn .35s ease both;}
-  .navbtn{transition:background .15s ease, color .15s ease;}
-  .barfill{transition:width .8s cubic-bezier(.2,.8,.3,1);}
-  .barfill-h{transition:height .8s cubic-bezier(.2,.8,.3,1);}
-  @keyframes rowPulse{0%,100%{background:rgba(200,162,74,.28);}50%{background:rgba(200,162,74,.12);}}
-  tr.row-new td{animation:rowPulse 1.8s ease-in-out infinite;}
-</style>
-</head>
-<body>
-<header>
-  <div style="max-width:1200px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-    <div style="display:flex;align-items:center;gap:10px;">
-      <span style="font-size:24px;">⚓</span>
-      <div><div style="font-weight:800;font-size:16px;letter-spacing:.04em;">KRI KUJANG</div>
-      <div style="font-size:10.5px;color:#a9b6d3;letter-spacing:.08em;">HAILING LOG</div></div>
-    </div>
-    <nav style="display:flex;gap:4px;overflow-x:auto;" id="nav"></nav>
-    <div style="display:flex;gap:6px;">
-      <button class="btn btn-outline" style="color:#fff;border-color:#3a4a6d" onclick="document.getElementById('importFile').click()">Import</button>
-      <input id="importFile" type="file" accept=".json" style="display:none" onchange="handleImportFile(event)">
-      <button class="btn btn-gold" onclick="exportExcel()">Excel</button>
-      <button class="btn btn-gold" onclick="exportPDF()">PDF</button>
-      <button class="btn btn-outline" style="color:#fff;border-color:#3a4a6d" onclick="exportJSON()">Backup</button>
-    </div>
-  </div>
-</header>
-<main style="max-width:1200px;margin:0 auto;padding:18px 16px 60px;" id="app"></main>
-<div class="toast" id="toast"></div>
 
-<script>
 const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
 const API_BASE='/api';
 const recordApiPath=(id)=>`/record?id=${encodeURIComponent(id)}`;
@@ -151,7 +72,7 @@ async function confirmAddOps(){
   if(!name){ input?.focus(); return; }
   try{
     const o=await apiFetch('/operations',{method:'POST',body:JSON.stringify({name})});
-    opsList.push(o); selectedOpsId=o.id; selectedTrip=''; addingOps=false;
+    opsList.push(o); selectedOpsId=o.id; addingOps=false;
     renderModal(); renderApp(); showCrudSuccess('Operasi berhasil ditambahkan ke database.');
   }catch(e){ showCrudError('Tambah operasi',e); }
 }
@@ -161,8 +82,8 @@ async function confirmDeleteOps(id){
   try{
     await apiFetch(operationApiPath(id),{method:'DELETE'});
     opsList=opsList.filter(x=>x.id!==id);
-    if(selectedOpsId===id) { selectedOpsId=''; selectedTrip=''; }
-    if(filters.opsId===id) { filters.opsId=''; filters.trip=''; }
+    if(selectedOpsId===id) selectedOpsId='';
+    if(filters.opsId===id) filters.opsId='';
     deletingOpsId=null;
     await load();
     renderModal(); renderApp();
@@ -531,8 +452,8 @@ function renderData(){
   const list=filteredRecords();
   return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center;justify-content:space-between;">
     <div style="display:flex;gap:6px;flex-wrap:wrap;">
-      <div class="navbtn ${!filters.opsId?'active':''}" style="background:${!filters.opsId?'var(--navy)':'var(--card)'};color:${!filters.opsId?'#fff':'var(--text)'};border:1px solid var(--border);" onclick="filters.opsId='';filters.trip='';renderApp()">Semua Operasi</div>
-      ${opsList.map(o=>`<div class="navbtn ${filters.opsId===o.id?'active':''}" style="background:${filters.opsId===o.id?'var(--navy)':'var(--card)'};color:${filters.opsId===o.id?'#fff':'var(--text)'};border:1px solid var(--border);" onclick="filters.opsId='${o.id}';filters.trip='';renderApp()">${o.name}</div>`).join('')}
+      <div class="navbtn ${!filters.opsId?'active':''}" style="background:${!filters.opsId?'var(--navy)':'var(--card)'};color:${!filters.opsId?'#fff':'var(--text)'};border:1px solid var(--border);" onclick="filters.opsId='';renderApp()">Semua Operasi</div>
+      ${opsList.map(o=>`<div class="navbtn ${filters.opsId===o.id?'active':''}" style="background:${filters.opsId===o.id?'var(--navy)':'var(--card)'};color:${filters.opsId===o.id?'#fff':'var(--text)'};border:1px solid var(--border);" onclick="filters.opsId='${o.id}';renderApp()">${o.name}</div>`).join('')}
     </div>
     <button class="btn btn-outline" onclick="refreshData()">🔄 Refresh</button>
     <button class="btn btn-outline" onclick="openManageOps()">⚙ Kelola Operasi</button>
@@ -929,9 +850,9 @@ function opsListItemsHTML(){
   const filtered=opsList.filter(o=>o.name.toLowerCase().includes(q));
   if(opsList.length===0) return `<div style="font-size:12.5px;color:var(--gray);text-align:center;padding:10px;">Belum ada operasi. Tambahkan di bawah.</div>`;
   if(filtered.length===0) return `<div style="font-size:12.5px;color:var(--gray);text-align:center;padding:10px;">Operasi "${q}" tidak ditemukan.</div>`;
-  return filtered.map(o=>`<div style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="font-size:13px;font-weight:700;">${o.name}</span><button class="btn btn-danger" style="padding:3px 8px;font-size:11px;" onclick="openDeleteOps('${o.id}')">Hapus</button></div>
-    <div style="margin-top:5px;font-size:11px;color:var(--gray);">${(o.trips||[]).length?('Trip: '+(o.trips||[]).map(t=>`<span class=\"badge\" style=\"margin-right:4px;margin-top:3px;display:inline-block;\">${t}</span>`).join('')):'Belum ada data Trip.'}</div>
+  return filtered.map(o=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border:1px solid var(--border);border-radius:6px;">
+    <span style="font-size:13px;">${o.name}</span>
+    <button class="btn btn-danger" style="padding:3px 8px;font-size:11px;" onclick="openDeleteOps('${o.id}')">Hapus</button>
   </div>`).join('');
 }
 function renderOpsListContainer(){ const el=document.getElementById('opsListContainer'); if(el) el.innerHTML=opsListItemsHTML(); }
@@ -1045,6 +966,3 @@ async function exportPDF(){
 
 // ---------- Init ----------
 bootstrapData();
-</script>
-</body>
-</html>
