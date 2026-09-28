@@ -79,6 +79,7 @@
 
 <script>
 const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
+function htmlEsc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 const API_BASE='/api';
 const recordApiPath=(id)=>`/record?id=${encodeURIComponent(id)}`;
 const operationApiPath=(id)=>`/operation?id=${encodeURIComponent(id)}`;
@@ -188,6 +189,47 @@ async function confirmDeleteOps(id){
 function normPhone(s){ return (s||'').replace(/[^0-9+]/g,'').trim(); }
 function grabAfter(lines,i){ let out=[]; for(let j=i+1;j<lines.length;j++){ const l=lines[j].trim(); if(!l) break; if(/^(nama|kapal|tonase|gt|tujuan|muatan|abk|capt|captain|nahkoda|hp|no hp|telepon|phone|owner|pengurus|pemilik|pt|perusahaan|company|posisi|position|lokasi|location)\s*:/i.test(l)) break; out.push(l); } return out; }
 function matchLabel(line,labels){ const m=line.match(/^([^:]+):\s*(.*)$/); if(!m) return null; const key=m[1].trim().toLowerCase(); for(const lab of labels){ if(key===lab) return m[2].trim(); } return null; }
+
+function parseTransferList(raw){
+  const cleaned=String(raw||'').replace(/\\?~~~|\\?\*\*|\\?\*|`/g,'');
+  const lines=cleaned.split(/\r?\n/);
+  let tripHeader=''; const items=[]; const warnings=[];
+  for(const original of lines){
+    let line=original.trim();
+    if(!line) continue;
+    line=line.replace(/\\([.)])/g,'$1').replace(/^\\+/, '').trim();
+    const header=line.match(/^\*?\*?\s*(Trip\s*\d+\s*[,:-].*)\s*\*?\*?$/i);
+    if(header){ tripHeader=header[1].trim(); continue; }
+    const m=line.match(/^\s*(\d+)\s*[.\)]\s*(.+)$/);
+    if(!m) continue;
+    let content=m[2].trim().replace(/\\+$/,'').trim();
+    // Remove strike-through/markdown artifacts without changing the actual vessel text.
+    content=content.replace(/^\\?~~~\s*/,'').replace(/\\?~~~\s*$/,'').replace(/^\*+\s*/,'').replace(/\s*\*+$/,'').trim();
+    // Remove common non-payment notes. These notes do not become the vessel/owner fields.
+    content=content.replace(/~+[^\n]*?skip\s+kosong[^\n]*$/i,'').trim();
+    content=content.replace(/(?:\s+)(?:kontak\s+tidak\s+aktif|no\s+resp|belum\s+resp|kirim\s+rek|hub\s+aa|sudah\s+tf|senin\s+di\s+kirim)\s*$/i,'').trim();
+    content=content.replace(/[~*_\\]+$/,'').trim();
+    if(!content) continue;
+    // Last numeric token is the transfer nominal. Vessel names can contain numbers, so only accept a numeric token at the end.
+    let nominal=null;
+    const amountMatch=content.match(/(?:^|\s)(\d{1,3}(?:[.,]\d{3})+(?:\s*)|\d{4,})(?:\s*)$/);
+    if(amountMatch){ nominal=Number(String(amountMatch[1]).replace(/[^0-9]/g,'')); content=content.slice(0,amountMatch.index).trim(); }
+    // Owner is the final parenthesized value, e.g. "TB. WAHANA 2008 (Hardino)".
+    let owner='';
+    const ownerMatch=content.match(/\(([^()]*)\)\s*$/);
+    if(ownerMatch){ owner=ownerMatch[1].trim(); content=content.slice(0,ownerMatch.index).trim(); }
+    content=content.replace(/[~*_]+$/,'').trim();
+    if(!content){ warnings.push(`Baris ${m[1]} tidak memiliki nama vessel.`); continue; }
+    const vesselName=content;
+    const typeMatch=vesselName.match(/^(TB|TK|KM|MV|SPOB|LCT|MT|T)\.?\b/i);
+    items.push({
+      no:Number(m[1]), vesselName, owner:owner||'', nominal:Number.isFinite(nominal)?nominal:null,
+      transfer:Number.isFinite(nominal)?'Sudah Transfer':'Belum Transfer', type:typeMatch?typeMatch[1].toUpperCase().replace(/\.$/,''):undefined
+    });
+  }
+  if(!items.length) warnings.push('Tidak ditemukan baris bernomor. Gunakan format 1. Nama Vessel (Owner) 500.000.');
+  return {mode:'transfer-list',trip:tripHeader,items,warnings,rawInput:raw,parserConfidence:items.length?100:0};
+}
 
 function parseHailing(raw){
   const lines = raw.split('\n');
@@ -631,6 +673,15 @@ let currentParsed=null;
 function doParse(){
   const raw=document.getElementById('rawInput').value;
   if(!raw.trim()){ toast('Tidak ada data untuk diparse.','warn'); return; }
+  const listParsed=parseTransferList(raw);
+  if(listParsed.items.length>=2){
+    currentParsed=listParsed;
+    if(!selectedTrip && listParsed.trip) selectedTrip=listParsed.trip;
+    document.getElementById('previewZone').innerHTML = transferListPreviewHTML(currentParsed);
+    toast(`✓ Parser menemukan ${listParsed.items.length} data transfer.`);
+    if(listParsed.items.length<60) toast(`⚠ Parser menemukan ${listParsed.items.length} baris. Periksa kembali teks sumber.`,'warn');
+    return;
+  }
   currentParsed=parseHailing(raw);
   document.getElementById('previewZone').innerHTML = previewHTML(currentParsed);
 }
@@ -691,6 +742,29 @@ ${raw}
     if(btn){ btn.disabled=false; btn.textContent=oldLabel||'🤖 Gunakan AI'; }
   }
 }
+function transferListPreviewHTML(p){
+  const opsObj=opsList.find(o=>o.id===selectedOpsId);
+  const rows=p.items.map((x,i)=>`<tr>
+    <td>${x.no}</td><td style="font-weight:700;white-space:nowrap;">${htmlEsc(x.vesselName)}</td><td>${htmlEsc(x.owner||'-')}</td>
+    <td><span class="badge" style="background:${x.nominal!=null?'#16a34a22':'#dc262622'};color:${x.nominal!=null?'#16a34a':'#dc2626'}">${x.transfer}</span></td>
+    <td style="text-align:right;white-space:nowrap;">${x.nominal!=null?formatRupiah(x.nominal):'-'}</td>
+  </tr>`).join('');
+  return `<div class="card" style="padding:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+      <div><div style="font-weight:800;">PREVIEW PARSE — DATA TRANSFER</div><div style="font-size:12px;color:var(--gray);margin-top:3px;">Ditemukan <b>${p.items.length}</b> data • ${htmlEsc(opsObj?.name||'Ops belum dipilih')} • ${htmlEsc(selectedTrip||p.trip||'Trip belum dipilih')}</div></div>
+      <div style="font-size:12px;font-weight:700;">Kolom: Nama Vessel • Owner • Transfer • Nominal</div>
+    </div>
+    ${p.warnings.map(w=>`<div style="background:#8a5a0022;border:1px solid #8a5a0055;color:#8a5a00;padding:6px 10px;border-radius:6px;font-size:12.5px;margin-bottom:6px;">${htmlEsc(w)}</div>`).join('')}
+    <div class="scrollx" style="max-height:430px;overflow:auto;margin-top:10px;">
+      <table><thead><tr><th>No</th><th>Nama Vessel</th><th>Owner</th><th>Transfer</th><th>Nominal</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;">
+      <div style="font-size:12px;color:var(--gray);">Jika ada nominal → <b>Sudah Transfer</b>. Tanpa nominal → <b>Belum Transfer</b>.</div>
+      <button class="btn" onclick="saveParsed()">Simpan ${p.items.length} Data Hailing</button>
+    </div>
+  </div>`;
+}
+
 function previewHTML(p){
   const opsObj=opsList.find(o=>o.id===selectedOpsId);
   const rows=[['Operasi',opsObj?opsObj.name:'Tanpa Operasi'],['Trip',selectedTrip||p.trip||'-'],['Nama',formatVesselNames(p)],['Tonase',formatVesselTonnage(p)],['Tujuan',p.destination||'-'],['Muatan',p.cargo||'-'],['ABK',p.crewCount??'-'],['Captain',p.captain||'-'],['HP Captain',p.captainPhone||'-'],['Owner',p.owner||'-'],['HP Owner',p.ownerPhone||'-'],['PT',p.company||'-'],['Posisi',p.posisi||'-']];
@@ -710,6 +784,21 @@ async function saveParsed(){
   const trip=String(selectedTrip||'').trim();
   if(!trip){ toast('⚠ Isi Trip terlebih dahulu. Contoh: Trip 1 : tanggal 23 - 28','warn'); document.getElementById('tripInput')?.focus(); return; }
   try{
+    if(currentParsed.mode==='transfer-list'){
+      const batch=currentParsed.items.map((x,i)=>({
+        id:uid(), no:x.no, date:null, time:null, posisi:'-', destination:'', cargo:'', crewCount:null, captain:null, captainPhone:null,
+        owner:x.owner||null, ownerPhone:null, company:null, nominal:x.nominal, rawInput:currentParsed.rawInput, parserConfidence:currentParsed.parserConfidence,
+        opsId:opsObj.id, opsName:opsObj.name, trip, vessels:[{id:uid(),name:x.vesselName,type:x.type,gt:null}]
+      }));
+      const result=await apiFetch('/records',{method:'POST',body:JSON.stringify({batch:true,records:batch})});
+      records=Array.isArray(result.records)?result.records:records;
+      highlightId=batch[batch.length-1]?.id||null;
+      showCrudSuccess(`${batch.length} data hailing berhasil diparse dan disimpan ke database.`);
+      currentParsed=null; document.getElementById('rawInput').value=''; document.getElementById('previewZone').innerHTML='';
+      await loadOps();
+      setPage('data');
+      return;
+    }
     const newId=await upsertRecord({
       vessels:currentParsed.vessels,destination:currentParsed.destination,cargo:currentParsed.cargo,
       crewCount:currentParsed.crewCount,captain:currentParsed.captain,captainPhone:currentParsed.captainPhone,
