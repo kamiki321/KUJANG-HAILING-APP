@@ -155,6 +155,21 @@ async function confirmAddOps(){
     renderModal(); renderApp(); showCrudSuccess('Operasi berhasil ditambahkan ke database.');
   }catch(e){ showCrudError('Tambah operasi',e); }
 }
+async function confirmAddTrip(){
+  const opsObj=opsList.find(o=>o.id===selectedOpsId);
+  const input=document.getElementById('tripInput');
+  const trip=String(input?.value||selectedTrip||'').trim();
+  if(!opsObj){ toast('⚠ Pilih Ops terlebih dahulu.','warn'); return; }
+  if(!trip){ toast('⚠ Isi nama Trip terlebih dahulu. Contoh: Trip 1 : tanggal 23 - 28','warn'); input?.focus(); return; }
+  try{
+    const result=await apiFetch('/operations',{method:'POST',body:JSON.stringify({action:'addTrip',opsId:opsObj.id,trip})});
+    const idx=opsList.findIndex(o=>o.id===opsObj.id);
+    if(idx>=0){ opsList[idx].trips=Array.from(new Set([...(opsList[idx].trips||[]),trip])).sort((a,b)=>a.localeCompare(b,'id')); }
+    selectedTrip=trip;
+    renderApp();
+    toast(result.created===false?'✓ Trip sudah tersimpan di database.':'✓ Trip berhasil disimpan ke database.');
+  }catch(e){ showCrudError('Simpan Trip',e); }
+}
 function openAddOps(){ addingOps=true; renderModal(); }
 function openDeleteOps(id){ deletingOpsId=id; renderModal(); }
 async function confirmDeleteOps(id){
@@ -592,7 +607,8 @@ function renderInput(){
     </div>
     <label style="font-size:11px;color:var(--gray);font-weight:700;">TRIP</label>
     <div style="display:flex;gap:6px;margin:6px 0 14px;flex-wrap:wrap;">
-      <input id="tripInput" list="tripSuggestions" value="${(selectedTrip||'').replace(/"/g,'&quot;')}" ${!opsObj?'disabled':''} placeholder="Contoh: Trip 1 : tanggal 23 - 28" style="flex:1;min-width:240px;" oninput="selectedTrip=this.value" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('rawInput')?.focus();}">
+      <input id="tripInput" list="tripSuggestions" value="${(selectedTrip||'').replace(/"/g,'&quot;')}" ${!opsObj?'disabled':''} placeholder="Contoh: Trip 1 : tanggal 23 - 28" style="flex:1;min-width:240px;" oninput="selectedTrip=this.value" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmAddTrip();}">
+      <button class="btn btn-outline" onclick="confirmAddTrip()" ${!opsObj?'disabled':''}>＋ Simpan Trip</button>
       <datalist id="tripSuggestions">${(opsObj?.trips||[]).map(t=>`<option value="${String(t).replace(/"/g,'&quot;')}">`).join('')}</datalist>
     </div>
     ${!opsObj?`<div style="font-size:11.5px;color:#b45309;background:#fff7ed;border:1px solid #fed7aa;padding:8px 10px;border-radius:7px;margin-bottom:12px;">Pilih <b>Ops</b> terlebih dahulu, lalu isi <b>Trip</b>, kemudian masukkan data hailing.</div>`:`<div style="font-size:11.5px;color:var(--gray);margin:-6px 0 12px;">Flow: <b>${opsObj.name}</b> → <b>${selectedTrip||'Input Trip'}</b> → Input Data Hailing.</div>`}
