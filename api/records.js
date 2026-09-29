@@ -1,8 +1,8 @@
-const {cors,json,body,ensureInitialized,allRecords,saveRecord,sql,makeId,now}=require('../lib/lib');
+const {cors,json,body,ensureInitialized,allRecords,saveRecord,sql,makeId,now, requireAuth}=require('../lib/lib');
 module.exports=async(req,res)=>{
  cors(res);if(req.method==='OPTIONS')return res.status(204).end();
  try{
-  await ensureInitialized(); const route=String(req.query?.__route||'');
+  await ensureInitialized();if(!(await requireAuth(req,res)))return; const route=String(req.query?.__route||'');
   if(route==='bulk-delete'){
    if(req.method!=='POST')return json(res,405,{error:'Method not allowed'});
    const b=await body(req);const ids=Array.isArray(b.ids)?[...new Set(b.ids.map(String).filter(Boolean))]:[];if(!ids.length)return json(res,400,{error:'Tidak ada ID yang dipilih'});

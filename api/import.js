@@ -1,4 +1,4 @@
-const { cors, json, body, ensureInitialized, allRecords, sql } = require('../lib/lib');
+const { cors, json, body, ensureInitialized, allRecords, sql, requireAuth } = require('../lib/lib');
 function cleanString(v){return v==null?null:String(v)}
 function cleanNumber(v){if(v===''||v==null)return null;const n=Number(v);return Number.isFinite(n)?n:null}
 function makeImportPayload(data){
@@ -10,7 +10,7 @@ function makeImportPayload(data){
 module.exports=async(req,res)=>{
   cors(res); if(req.method==='OPTIONS')return res.status(204).end();
   try{
-    await ensureInitialized(); if(req.method!=='POST')return json(res,405,{error:'Method not allowed'});
+    await ensureInitialized();if(!(await requireAuth(req,res)))return; if(req.method!=='POST')return json(res,405,{error:'Method not allowed'});
     const {mode='merge',data=[]}=await body(req); if(!Array.isArray(data))return json(res,400,{error:'Data import harus berupa array'}); if(!data.length)return json(res,400,{error:'Tidak ada data untuk diimpor'}); if(!['merge','replace'].includes(mode))return json(res,400,{error:'Mode import tidak valid'});
     const payload=makeImportPayload(data);
     if(mode==='replace'){await sql`DELETE FROM vessels`;await sql`DELETE FROM hailing_records`;await sql`DELETE FROM operations`}

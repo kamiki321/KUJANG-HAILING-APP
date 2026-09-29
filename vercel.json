@@ -1,14 +1,32 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/health.js": { "maxDuration": 60 },
-    "api/import.js": { "maxDuration": 60 },
-    "api/operation.js": { "maxDuration": 60 },
-    "api/operations.js": { "maxDuration": 60 },
-    "api/record.js": { "maxDuration": 60 },
-    "api/records.js": { "maxDuration": 60 }
+    "api/health.js": {
+      "maxDuration": 60
+    },
+    "api/import.js": {
+      "maxDuration": 60
+    },
+    "api/operation.js": {
+      "maxDuration": 60
+    },
+    "api/operations.js": {
+      "maxDuration": 60
+    },
+    "api/record.js": {
+      "maxDuration": 60
+    },
+    "api/records.js": {
+      "maxDuration": 60
+    },
+    "api/auth.js": {
+      "maxDuration": 30
+    }
   },
   "rewrites": [
-    { "source": "/api/records/bulk-delete", "destination": "/api/records?__route=bulk-delete" }
+    {
+      "source": "/api/records/bulk-delete",
+      "destination": "/api/records?__route=bulk-delete"
+    }
   ]
 }

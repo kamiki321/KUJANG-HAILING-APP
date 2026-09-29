@@ -1,8 +1,8 @@
-const {cors,json,body,ensureInitialized,sql,makeId,now}=require('../lib/lib');
+const {cors,json,body,ensureInitialized,sql,makeId,now, requireAuth}=require('../lib/lib');
 module.exports=async(req,res)=>{
  cors(res);if(req.method==='OPTIONS')return res.status(204).end();
  try{
-  await ensureInitialized();
+  await ensureInitialized();if(!(await requireAuth(req,res)))return;
   if(req.method==='GET'){
     const rows=await sql`SELECT id,name,created_at AS "createdAt",updated_at AS "updatedAt" FROM operations ORDER BY created_at ASC`;
     for(const o of rows){

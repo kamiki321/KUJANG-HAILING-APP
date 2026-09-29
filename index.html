@@ -54,10 +54,45 @@
   .barfill-h{transition:height .8s cubic-bezier(.2,.8,.3,1);}
   @keyframes rowPulse{0%,100%{background:rgba(200,162,74,.28);}50%{background:rgba(200,162,74,.12);}}
   tr.row-new td{animation:rowPulse 1.8s ease-in-out infinite;}
+  /* ---------- LOGIN ---------- */
+  .auth-wrap{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom,0px));background:radial-gradient(1200px 600px at 20% -10%,#1b3a70 0%,transparent 60%),linear-gradient(160deg,#0b1e3d 0%,#122a52 55%,#0b1e3d 100%);overflow-y:auto;}
+  .auth-card{width:100%;max-width:380px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:14px;padding:28px 24px 24px;box-shadow:0 24px 60px rgba(0,0,0,.35);animation:fadeInUp .45s cubic-bezier(.2,.7,.3,1) both;}
+  .auth-logo{width:56px;height:56px;border-radius:14px;background:var(--navy);display:grid;place-items:center;font-size:30px;margin:0 auto 12px;box-shadow:0 0 0 3px rgba(200,162,74,.35);}
+  .auth-card label{display:block;font-size:12px;font-weight:700;color:var(--gray);margin:14px 0 5px;letter-spacing:.03em;}
+  .auth-card input{width:100%;padding:10px 12px;font-size:14px;}
+  .auth-card input:focus{outline:2px solid var(--gold);outline-offset:0;border-color:var(--gold);}
+  .auth-err{display:none;margin-top:14px;padding:9px 12px;border-radius:8px;background:#fdecec;color:#b3261e;font-size:12.5px;line-height:1.4;}
+  .auth-err.show{display:block;}
+  .pw-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--gray);font-size:12px;font-weight:700;padding:6px 8px;cursor:pointer;}
+  .auth-spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.25);border-top-color:var(--gold);animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
-<header>
+<div id="authSplash" class="auth-wrap" style="flex-direction:column;gap:14px;color:#cfd8ea;font-size:13px;text-align:center;">
+  <div class="auth-spinner" id="authSpinner"></div>
+  <div id="authSplashMsg">Memuat...</div>
+  <button class="btn btn-gold" id="authRetry" style="display:none" onclick="initAuth()">Coba lagi</button>
+</div>
+<div id="loginScreen" class="auth-wrap" style="display:none;">
+  <form class="auth-card" id="loginForm" onsubmit="submitLogin(event)" novalidate>
+    <div class="auth-logo">⚓</div>
+    <div style="text-align:center;">
+      <div style="font-weight:800;font-size:20px;letter-spacing:.06em;">KRI KUJANG</div>
+      <div style="font-size:11px;color:var(--gray);letter-spacing:.14em;margin-top:2px;">HAILING LOG</div>
+    </div>
+    <div class="auth-err" id="loginError" role="alert"></div>
+    <label for="loginUsername">USERNAME</label>
+    <input id="loginUsername" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="100" placeholder="Masukkan username">
+    <label for="loginPassword">PASSWORD</label>
+    <div style="position:relative;">
+      <input id="loginPassword" name="password" type="password" autocomplete="current-password" maxlength="200" placeholder="Masukkan password" style="padding-right:78px;">
+      <button type="button" class="pw-toggle" id="pwToggle" onclick="togglePassword()">Tampilkan</button>
+    </div>
+    <button type="submit" class="btn btn-gold" id="loginBtn" style="width:100%;margin-top:20px;padding:11px 14px;font-size:14px;">Masuk</button>
+  </form>
+</div>
+<header id="appHeader" style="display:none;">
   <div style="max-width:1200px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
     <div style="display:flex;align-items:center;gap:10px;">
       <span style="font-size:24px;">⚓</span>
@@ -65,12 +100,14 @@
       <div style="font-size:10.5px;color:#a9b6d3;letter-spacing:.08em;">HAILING LOG</div></div>
     </div>
     <nav style="display:flex;gap:4px;overflow-x:auto;" id="nav"></nav>
-    <div style="display:flex;gap:6px;">
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
       <button class="btn btn-outline" style="color:#fff;border-color:#3a4a6d" onclick="document.getElementById('importFile').click()">Import</button>
       <input id="importFile" type="file" accept=".json" style="display:none" onchange="handleImportFile(event)">
       <button class="btn btn-gold" onclick="exportExcel()">Excel</button>
       <button class="btn btn-gold" onclick="exportPDF()">PDF</button>
       <button class="btn btn-outline" style="color:#fff;border-color:#3a4a6d" onclick="exportJSON()">Backup</button>
+      <span id="userLabel" class="hidden sm:inline" style="font-size:12px;color:#a9b6d3;margin-left:6px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+      <button class="btn btn-danger" id="logoutBtn" onclick="doLogout()">Log out</button>
     </div>
   </div>
 </header>
@@ -84,10 +121,15 @@ const API_BASE='/api';
 const recordApiPath=(id)=>`/record?id=${encodeURIComponent(id)}`;
 const operationApiPath=(id)=>`/operation?id=${encodeURIComponent(id)}`;
 async function apiFetch(path, options={}){
-  const res=await fetch(API_BASE+path,{headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
+  const res=await fetch(API_BASE+path,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
   const text=await res.text();
   let data=null; try{ data=text?JSON.parse(text):null; }catch(e){ data=null; }
-  if(!res.ok) throw new Error(data?.error||`HTTP ${res.status}`);
+  if(!res.ok){
+    const err=new Error(data?.error||`HTTP ${res.status}`); err.status=res.status;
+    // Sesi tidak valid (mis. kadaluarsa 30 hari / dihapus) -> kembali ke halaman login
+    if(res.status===401 && !path.startsWith('/auth')) handleUnauthorized();
+    throw err;
+  }
   return data;
 }
 
@@ -1151,8 +1193,68 @@ async function exportPDF(){
   }catch(e){ toast('⚠ Gagal membuat PDF.','warn'); }
 }
 
+// ---------- AUTH ----------
+// Sesi disimpan di cookie HttpOnly (30 hari) + tabel sessions di Neon.
+// Refresh / tutup browser TIDAK logout. Logout hanya lewat tombol "Log out" di header.
+let currentUser=null;
+const $id=(i)=>document.getElementById(i);
+function showSplash(msg,withRetry){
+  $id('loginScreen').style.display='none'; $id('authSplash').style.display='flex';
+  $id('authSplashMsg').textContent=msg||'Memuat...';
+  $id('authSpinner').style.display=withRetry?'none':'';
+  $id('authRetry').style.display=withRetry?'':'none';
+}
+function setLoginError(msg){ const e=$id('loginError'); e.textContent=msg||''; e.classList.toggle('show',!!msg); }
+function setLoginLoading(on){ const b=$id('loginBtn'); b.disabled=on; b.textContent=on?'Memproses...':'Masuk'; b.style.opacity=on?.7:1; }
+function togglePassword(){ const i=$id('loginPassword'); const show=i.type==='password'; i.type=show?'text':'password'; $id('pwToggle').textContent=show?'Sembunyikan':'Tampilkan'; }
+function showLogin(msg){
+  currentUser=null;
+  $id('authSplash').style.display='none'; $id('appHeader').style.display='none';
+  $id('app').innerHTML=''; $id('resultDialog')?.remove();
+  $id('loginScreen').style.display='flex';
+  $id('loginPassword').value=''; $id('loginPassword').type='password'; $id('pwToggle').textContent='Tampilkan';
+  setLoginError(msg||''); setLoginLoading(false);
+  setTimeout(()=>$id('loginUsername').focus(),50);
+}
+function showApp(user){
+  currentUser=user;
+  $id('authSplash').style.display='none'; $id('loginScreen').style.display='none';
+  $id('appHeader').style.display='';
+  $id('userLabel').textContent=user.name||user.username;
+  page='dashboard'; // setelah login selalu masuk ke dashboard
+  bootstrapData();
+}
+function handleUnauthorized(){ if(currentUser) showLogin('Sesi berakhir, silakan login kembali.'); }
+async function submitLogin(ev){
+  ev.preventDefault();
+  const username=$id('loginUsername').value.trim(), password=$id('loginPassword').value;
+  if(!username||!password){ setLoginError('Username dan password wajib diisi.'); return; }
+  setLoginError(''); setLoginLoading(true);
+  try{
+    const r=await apiFetch('/auth?action=login',{method:'POST',body:JSON.stringify({username,password})});
+    $id('loginPassword').value='';
+    showApp(r.user);
+  }catch(e){
+    setLoginError(e.status?e.message:'Tidak dapat terhubung ke server. Periksa koneksi Anda.');
+    setLoginLoading(false); $id('loginPassword').focus();
+  }
+}
+async function doLogout(){
+  try{ await apiFetch('/auth?action=logout',{method:'POST'}); }
+  catch(e){ if(e.status!==401){ toast('⚠ Gagal log out: '+e.message,'warn'); return; } }
+  location.reload(); // bersihkan seluruh state di memori, lalu tampil halaman login
+}
+async function initAuth(){
+  showSplash('Memuat...');
+  try{ const r=await apiFetch('/auth?action=me'); showApp(r.user); }
+  catch(e){
+    if(e.status===401) showLogin();
+    else showSplash('Tidak dapat terhubung ke server. Periksa koneksi Anda.',true); // jangan logout hanya karena offline
+  }
+}
+
 // ---------- Init ----------
-bootstrapData();
+initAuth();
 </script>
 </body>
 </html>
