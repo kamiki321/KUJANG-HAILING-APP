@@ -791,11 +791,11 @@ async function saveParsed(){
         opsId:opsObj.id, opsName:opsObj.name, trip, vessels:[{id:uid(),name:x.vesselName,type:x.type,gt:null}]
       }));
       const result=await apiFetch('/records',{method:'POST',body:JSON.stringify({batch:true,records:batch})});
-      records=Array.isArray(result.records)?result.records:records;
       highlightId=batch[batch.length-1]?.id||null;
-      showCrudSuccess(`${batch.length} data hailing berhasil diparse dan disimpan ke database.`);
-      currentParsed=null; document.getElementById('rawInput').value=''; document.getElementById('previewZone').innerHTML='';
+      await load();
       await loadOps();
+      showCrudSuccess(`${Number(result.count||batch.length)} data hailing berhasil disimpan ke database.`);
+      currentParsed=null; document.getElementById('rawInput').value=''; document.getElementById('previewZone').innerHTML='';
       setPage('data');
       return;
     }
@@ -810,7 +810,10 @@ async function saveParsed(){
     showCrudSuccess('Data hailing berhasil disimpan ke database.');
     currentParsed=null; document.getElementById('rawInput').value=''; document.getElementById('previewZone').innerHTML='';
     setPage('data');
-  }catch(e){}
+  }catch(e){
+    console.error('saveParsed error',e);
+    showCrudError('Simpan data hailing',e);
+  }
 }
 
 function renderStats(){

@@ -35,11 +35,25 @@ module.exports=async(req,res)=>{
     const tripPairs=new Map();
     for(const r of clean){ if(r.opsId&&r.trip) tripPairs.set(r.opsId+'\u0000'+r.trip,{opsId:r.opsId,trip:r.trip}); }
     for(const pair of tripPairs.values()){ const tid=makeId(); await sql`INSERT INTO operation_trips(id,ops_id,trip,created_at,updated_at) VALUES(${tid},${pair.opsId},${pair.trip},NOW(),NOW()) ON CONFLICT(ops_id,trip) DO UPDATE SET updated_at=NOW()`; }
-    const rj=JSON.stringify(clean);
-    await sql`INSERT INTO hailing_records(id,no,created_at,updated_at,date,time,posisi,destination,cargo,crew_count,captain,captain_phone,owner,owner_phone,company,nominal,raw_input,parser_confidence,ops_id,ops_name,trip)
-      SELECT id,no,createdAt,updatedAt,date,time,posisi,destination,cargo,crewCount,captain,captainPhone,owner,ownerPhone,company,nominal,rawInput,parserConfidence,opsId,opsName,trip
-      FROM jsonb_to_recordset(${rj}::jsonb) AS x(id text,no int,createdAt timestamptz,updatedAt timestamptz,date text,time text,posisi text,destination text,cargo text,crewCount int,captain text,captainPhone text,owner text,ownerPhone text,company text,nominal bigint,rawInput text,parserConfidence int,opsId text,opsName text,trip text)
-      ON CONFLICT(id) DO UPDATE SET no=EXCLUDED.no,updated_at=EXCLUDED.updated_at,date=EXCLUDED.date,time=EXCLUDED.time,posisi=EXCLUDED.posisi,destination=EXCLUDED.destination,cargo=EXCLUDED.cargo,crew_count=EXCLUDED.crew_count,captain=EXCLUDED.captain,captain_phone=EXCLUDED.captain_phone,owner=EXCLUDED.owner,owner_phone=EXCLUDED.owner_phone,company=EXCLUDED.company,nominal=EXCLUDED.nominal,raw_input=EXCLUDED.raw_input,parser_confidence=EXCLUDED.parser_confidence,ops_id=EXCLUDED.ops_id,ops_name=EXCLUDED.ops_name,trip=EXCLUDED.trip`;
+    // Use snake_case JSON keys so PostgreSQL recordset mapping is deterministic.
+    const dbRows=clean.map(r=>({
+      id:r.id,no:r.no,created_at:r.createdAt,updated_at:r.updatedAt,date:r.date,time:r.time,posisi:r.posisi,
+      destination:r.destination,cargo:r.cargo,crew_count:r.crewCount,captain:r.captain,captain_phone:r.captainPhone,
+      owner:r.owner,owner_phone:r.ownerPhone,company:r.company,nominal:r.nominal,raw_input:r.rawInput,
+      parser_confidence:r.parserConfidence,ops_id:r.opsId,ops_name:r.opsName,trip:r.trip
+    }));
+    const rj=JSON.stringify(dbRows);
+    try {
+      await sql`INSERT INTO hailing_records(id,no,created_at,updated_at,date,time,posisi,destination,cargo,crew_count,captain,captain_phone,owner,owner_phone,company,nominal,raw_input,parser_confidence,ops_id,ops_name,trip)
+        SELECT id,no,created_at,updated_at,date,time,posisi,destination,cargo,crew_count,captain,captain_phone,owner,owner_phone,company,nominal,raw_input,parser_confidence,ops_id,ops_name,trip
+        FROM jsonb_to_recordset(${rj}::jsonb) AS x(id text,no int,created_at timestamptz,updated_at timestamptz,date text,time text,posisi text,destination text,cargo text,crew_count int,captain text,captain_phone text,owner text,owner_phone text,company text,nominal bigint,raw_input text,parser_confidence int,ops_id text,ops_name text,trip text)
+        ON CONFLICT(id) DO UPDATE SET no=EXCLUDED.no,updated_at=EXCLUDED.updated_at,date=EXCLUDED.date,time=EXCLUDED.time,posisi=EXCLUDED.posisi,destination=EXCLUDED.destination,cargo=EXCLUDED.cargo,crew_count=EXCLUDED.crew_count,captain=EXCLUDED.captain,captain_phone=EXCLUDED.captain_phone,owner=EXCLUDED.owner,owner_phone=EXCLUDED.owner_phone,company=EXCLUDED.company,nominal=EXCLUDED.nominal,raw_input=EXCLUDED.raw_input,parser_confidence=EXCLUDED.parser_confidence,ops_id=EXCLUDED.ops_id,ops_name=EXCLUDED.ops_name,trip=EXCLUDED.trip`;
+    } catch (bulkError) {
+      console.error('bulk insert failed; using safe row-by-row fallback', bulkError);
+      for (const r of clean) {
+        await saveRecord(r, r.id);
+      }
+    }
     const vessels=[]; for(const r of clean){ for(const v of r.vessels){ const name=String(v?.name||'').trim(); if(!name)continue; vessels.push({id:String(v.id||makeId()),hailingId:r.id,name,type:v.type?String(v.type):null,gt:v.gt==null?null:String(v.gt)}); } }
     if(vessels.length){ const vj=JSON.stringify(vessels); await sql`INSERT INTO vessels(id,hailing_id,name,type,gt) SELECT id,hailingId,name,type,gt FROM jsonb_to_recordset(${vj}::jsonb) AS x(id text,hailingId text,name text,type text,gt text) ON CONFLICT(id) DO UPDATE SET hailing_id=EXCLUDED.hailing_id,name=EXCLUDED.name,type=EXCLUDED.type,gt=EXCLUDED.gt`; }
     return json(res,201,{ok:true,count:clean.length,records:await allRecords()});

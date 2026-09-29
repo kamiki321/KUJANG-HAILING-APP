@@ -1,6 +1,6 @@
 {
   "name": "kri-kujang-hailing-vercel",
-  "version": "7.0.0",
+  "version": "10.0.0",
   "private": true,
   "description": "KRI KUJANG Hailing Log - 6 Serverless Functions + Ops/Trip hierarchy + Neon PostgreSQL",
   "engines": {
