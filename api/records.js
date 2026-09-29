@@ -54,8 +54,51 @@ module.exports=async(req,res)=>{
         await saveRecord(r, r.id);
       }
     }
-    const vessels=[]; for(const r of clean){ for(const v of r.vessels){ const name=String(v?.name||'').trim(); if(!name)continue; vessels.push({id:String(v.id||makeId()),hailingId:r.id,name,type:v.type?String(v.type):null,gt:v.gt==null?null:String(v.gt)}); } }
-    if(vessels.length){ const vj=JSON.stringify(vessels); await sql`INSERT INTO vessels(id,hailing_id,name,type,gt) SELECT id,hailingId,name,type,gt FROM jsonb_to_recordset(${vj}::jsonb) AS x(id text,hailingId text,name text,type text,gt text) ON CONFLICT(id) DO UPDATE SET hailing_id=EXCLUDED.hailing_id,name=EXCLUDED.name,type=EXCLUDED.type,gt=EXCLUDED.gt`; }
+    // Save vessel rows after hailing rows. IMPORTANT: jsonb_to_recordset is case-sensitive
+    // for JSON keys, so use snake_case consistently. The old code used `hailingId`,
+    // which PostgreSQL could read as a missing JSON property and therefore produced
+    // NULL for the NOT NULL `vessels.hailing_id` column. That is why the 62 hailing
+    // rows were saved but the browser still received HTTP 500.
+    const vessels=[];
+    for(const r of clean){
+      for(const v of r.vessels){
+        const name=String(v?.name||'').trim();
+        if(!name) continue;
+        vessels.push({
+          id:String(v.id||makeId()),
+          hailing_id:r.id,
+          name,
+          type:v.type?String(v.type):null,
+          gt:v.gt==null?null:String(v.gt)
+        });
+      }
+    }
+    if(vessels.length){
+      const vj=JSON.stringify(vessels);
+      try {
+        await sql`INSERT INTO vessels(id,hailing_id,name,type,gt)
+          SELECT id,hailing_id,name,type,gt
+          FROM jsonb_to_recordset(${vj}::jsonb) AS x(id text,hailing_id text,name text,type text,gt text)
+          ON CONFLICT(id) DO UPDATE SET
+            hailing_id=EXCLUDED.hailing_id,
+            name=EXCLUDED.name,
+            type=EXCLUDED.type,
+            gt=EXCLUDED.gt`;
+      } catch(vesselBulkError) {
+        // Final safety net: never report a successful hailing save as HTTP 500
+        // just because a bulk vessel insert failed. Save each vessel individually.
+        console.error('bulk vessel insert failed; using safe row-by-row fallback', vesselBulkError);
+        for(const v of vessels){
+          await sql`INSERT INTO vessels(id,hailing_id,name,type,gt)
+            VALUES(${v.id},${v.hailing_id},${v.name},${v.type},${v.gt})
+            ON CONFLICT(id) DO UPDATE SET
+              hailing_id=EXCLUDED.hailing_id,
+              name=EXCLUDED.name,
+              type=EXCLUDED.type,
+              gt=EXCLUDED.gt`;
+        }
+      }
+    }
     return json(res,201,{ok:true,count:clean.length,records:await allRecords()});
    }
    return json(res,201,await saveRecord(b));
