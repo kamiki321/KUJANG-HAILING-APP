@@ -78,7 +78,7 @@
   <form class="auth-card" id="loginForm" onsubmit="submitLogin(event)" novalidate>
     <div class="auth-logo">⚓</div>
     <div style="text-align:center;">
-      <div style="font-weight:800;font-size:20px;letter-spacing:.06em;">KRI KUJANG</div>
+      <div style="font-weight:800;font-size:20px;letter-spacing:.06em;">TERREA</div>
       <div style="font-size:11px;color:var(--gray);letter-spacing:.14em;margin-top:2px;">HAILING LOG</div>
     </div>
     <div class="auth-err" id="loginError" role="alert"></div>
@@ -96,7 +96,7 @@
   <div style="max-width:1200px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
     <div style="display:flex;align-items:center;gap:10px;">
       <span style="font-size:24px;">⚓</span>
-      <div><div style="font-weight:800;font-size:16px;letter-spacing:.04em;">KRI KUJANG</div>
+      <div><div style="font-weight:800;font-size:16px;letter-spacing:.04em;">TERREA</div>
       <div style="font-size:10.5px;color:#a9b6d3;letter-spacing:.08em;">HAILING LOG</div></div>
     </div>
     <nav style="display:flex;gap:4px;overflow-x:auto;" id="nav"></nav>
@@ -1181,8 +1181,8 @@ async function exportPDF(){
     const list=filteredRecords();
     const { jsPDF } = window.jspdf;
     const doc=new jsPDF({orientation:'landscape',unit:'pt',format:'a4'});
-    doc.setFontSize(14); doc.text('KRI KUJANG',40,32);
-    doc.setFontSize(10); doc.text('DATA KAPAL — KRI KUJANG HAILING',40,48);
+    doc.setFontSize(14); doc.text('TERREA',40,32);
+    doc.setFontSize(10); doc.text('DATA KAPAL — TERREA HAILING',40,48);
     doc.text('Operasi: '+opsContextLabel(),40,62);
     doc.text('Exported: '+new Date().toLocaleString('id-ID'),40,76);
     const cols=COLS.filter(c=>visibleColumns.includes(c));
